@@ -7,7 +7,7 @@ These skills guide AI coding agents (Claude Code and other skill-aware tools) th
 ## Installation
 
 ```bash
-npx skills add @Alquimia-ai/sdk-skills
+npx skills add Alquimia-ai/sdk-skills
 ```
 
 Or via Claude Code plugin:
