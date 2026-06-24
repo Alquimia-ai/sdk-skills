@@ -1,0 +1,22 @@
+{
+  "name": "alquimia-skills",
+  "owner": {
+    "name": "Alquimia AI",
+    "email": "german.ferraro@alquimia.ai"
+  },
+  "metadata": {
+    "description": "Agent skills for building applications on the Alquimia AI runtime",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "alquimia-sdk",
+      "description": "Build applications that communicate with the Alquimia AI runtime — SDK init, server proxies, chat UI, and optional features (TTS/STT, tools, attachments, sidebar)",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/alquimia-sdk"
+      ]
+    }
+  ]
+}
