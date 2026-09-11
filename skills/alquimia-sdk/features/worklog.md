@@ -1,0 +1,101 @@
+# Worklog — Agent Execution Trace
+
+The worklog turns the runtime's granular `bus_mode` event stream into a normalized execution tree: which steps ran, in what order, nested how deeply, with what status. Use it for "show your work" panels, debugging views, and audit UIs.
+
+This is distinct from the reasoning **sidebar** (`features/sidebar.md`), which shows the agent's thinkings. The worklog shows *execution*.
+
+---
+
+## 1. Opt in via the hook
+
+```tsx
+const alquimia = useAlquimia({
+  assistantId,
+  adapter,
+  options: { worklog: true },
+});
+
+const { worklog } = alquimia;   // WorklogState | undefined
+```
+
+Off by default. When enabled, the hook accumulates stream frames into `worklog` and resets it at the start of each run.
+
+---
+
+## 2. The shape
+
+```typescript
+interface WorklogState {
+  taskId: string | null;
+  status: 'idle' | 'running' | 'success' | 'error';
+  answer: string | null;
+  nodes: WorklogNode[];               // the execution tree
+  index: Record<string, number>;
+  raw: WorklogRecord[];               // every ingested record
+}
+
+interface WorklogNode {
+  id: string;
+  kind: NodeKind;
+  eventClass: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+  title: string;
+  depth: number;
+  parentId?: string;
+  children: WorklogNode[];
+  command?: unknown;                  // the request side
+  response?: unknown;                 // the response side (merged by control_id)
+  error?: string;
+  startedAt?: string;
+  endedAt?: string;
+  raw: WorklogRecord[];
+}
+```
+
+Command and response frames sharing a `control_id` are merged into one node, so a step appears once with both sides attached rather than twice.
+
+Rendering it is an ordinary recursive walk:
+
+```tsx
+function WorklogTree({ nodes }: { nodes: WorklogNode[] }) {
+  return (
+    <ul>
+      {nodes.map((n) => (
+        <li key={n.id} style={{ marginLeft: n.depth * 12 }} data-status={n.status}>
+          {n.title} <em>{n.status}</em>
+          {n.children.length ? <WorklogTree nodes={n.children} /> : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+{alquimia.worklog ? <WorklogTree nodes={alquimia.worklog.nodes} /> : null}
+```
+
+---
+
+## 3. Standalone use
+
+To build the tree outside `useAlquimia` — a history viewer over `GET /worklog/{task_id}/events`, say:
+
+```typescript
+import { foldWorklog, useWorklog, frameToRecord } from '@alquimia-ai/tools/worklog';
+
+// Historical records → final state, in one pass:
+const state = foldWorklog(records, taskId);
+
+// Or accumulate live:
+const { worklog, ingest, ingestMany, reset } = useWorklog(taskId);
+ingest(frameToRecord(rawSseFrame));
+```
+
+| Export | Purpose |
+|---|---|
+| `foldWorklog(records, taskId?)` | Fold a complete record array into final state |
+| `reduceWorklog(state, record)` | Single-record reducer |
+| `useWorklog(taskId?)` | Live accumulator hook — `{ worklog, ingest, ingestMany, reset }` |
+| `frameToRecord(frame)` | Normalize a raw SSE frame into a `WorklogRecord` |
+| `EVENT_REGISTRY` / `resolveInterpreter(eventClass)` | How an event class maps to tree behavior — extend for custom event classes |
+
+Runtime v0.5.0+ records carry `entry_hash` / `previous_hash` for a tamper-evident chain; they are optional on SSE frames.

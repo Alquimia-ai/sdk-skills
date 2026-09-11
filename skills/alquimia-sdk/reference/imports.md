@@ -65,6 +65,72 @@ import {
 } from '@alquimia-ai/tools/utils';
 ```
 
+### GenUI (protocol)
+
+```typescript
+import {
+  coreCatalog,              // the default ~43-component catalog
+  CORE_CATALOG_ID,
+  coreCatalogJson,          // the published, versioned A2UI catalog artifact
+  emitA2uiCatalog,          // authoring catalog -> versioned catalog.json
+  buildRenderUiSchema,      // catalog -> render_ui tool schema
+  buildGenuiClause,         // catalog -> prompt clause
+  validateSurface,          // surface -> { ok, errors, warnings }
+  validateProps,
+  resolveComponent,
+  buildSurfaceResult,
+  buildDismissResult,
+  classifyAction,
+  assertSafeActionName,
+  DISMISS_ACTION,
+  getPointer,
+  setPointer,
+  resolveDynamic,
+  isPathRef,
+  styleSchemaShape,         // shared style vocabulary (spread into your schemas)
+  TONES, SIZES, EMPHASES, ALIGNS, DENSITIES,
+} from '@alquimia-ai/tools/genui';
+
+import type {
+  CatalogManifest,
+  UIComponentDefinition,
+  A2uiSurface,
+  A2uiComponent,
+  SurfaceAction,
+  SurfaceResult,
+  UIAction,
+  UIActionKind,
+  DynamicValue,
+  StyleProps,
+  ValidationResult,
+  ToolExecutionResponse,
+} from '@alquimia-ai/tools/genui';
+```
+
+### Worklog (execution trace)
+
+```typescript
+import {
+  useWorklog,
+  foldWorklog,
+  reduceWorklog,
+  frameToRecord,
+  initialWorklogState,
+  EVENT_REGISTRY,
+  resolveInterpreter,
+} from '@alquimia-ai/tools/worklog';
+
+import type {
+  WorklogState,
+  WorklogNode,
+  WorklogRecord,
+  WorklogSummary,
+  NodeKind,
+  NodeStatus,
+  RunStatus,
+} from '@alquimia-ai/tools/worklog';
+```
+
 ### Legacy re-exports (Next.js only)
 
 `@alquimia-ai/tools/next` also re-exports these deprecated helpers for backward compatibility:
@@ -104,6 +170,23 @@ import type {
 
 ```typescript
 import { AlquimiaUIProvider, useAlquimiaTheme } from '@alquimia-ai/ui/providers';
+```
+
+### GenUI (renderer)
+
+```typescript
+import {
+  A2uiRenderer,        // renders one surface against a registry
+  coreUiRegistry,      // catalog name -> shadcn component (the default binding)
+  AssistantChat,       // batteries-included GenUI chat shell
+} from '@alquimia-ai/ui/components/genui';
+
+import type {
+  A2uiRendererProps,
+  A2uiNodeProps,       // the props every registry component receives
+  AssistantChatProps,
+  GenuiChatController,
+} from '@alquimia-ai/ui/components/genui';
 ```
 
 ### Organisms (main chat components)
