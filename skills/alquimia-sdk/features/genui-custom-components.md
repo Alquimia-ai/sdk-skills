@@ -1,8 +1,8 @@
 # GenUI — Building Your Own Components
 
-Read `features/genui.md` first. This file covers making the agent compose **your** components: your design system, your domain, your vocabulary.
+Read `features/genui.md` first. This file covers making the agent compose **your** components — whatever they are, in your design system.
 
-This is the main reason GenUI is catalog-based. The agent does not know what a product, a policy, a shipment, or a lab result is — it knows the component names *you* authorized and the props *you* declared. Swap the catalog and the same agent composes a different domain, unchanged.
+This is the main reason GenUI is catalog-based. The agent does not know what any of your concepts are — it knows the component names *you* authorized and the props *you* declared. Whatever you can name and give a schema to, the agent can compose. §4 is the recipe; repeat it once per component.
 
 ---
 
@@ -11,10 +11,10 @@ This is the main reason GenUI is catalog-based. The agent does not know what a p
 | Level | You want | Cost |
 |---|---|---|
 | **1 — Swap the registry** | The default catalog, rendered with your components | Minutes. Keeps ~43 components working. |
-| **2 — Author a catalog** | Your own domain components, your own vocabulary | The real work. Full control of what the agent may emit. |
+| **2 — Author a catalog** | Components you define, named and shaped by you | The real work. Full control of what the agent may emit. |
 | **3 — Move the tool to the agent spec** | The tool + clause defined in Studio, not injected by the client | Config, not code. Composes with 1 or 2. |
 
-Levels 1 and 2 combine: a domain catalog usually starts by reusing core layout components and adding domain ones on top.
+Levels 1 and 2 combine: most catalogs reuse the core layout components and add their own on top.
 
 ---
 
@@ -102,18 +102,16 @@ import { styleSchemaShape, type CatalogManifest } from '@alquimia-ai/tools/genui
 export const storeCatalog: CatalogManifest = {
   id: 'https://acme.example/catalogs/store/v1/catalog.json',   // versioned URI
   components: {
-    ProductCard: {
-      name: 'ProductCard',
+    ItemCard: {
+      name: 'ItemCard',
       schema: z.object({
         ...styleSchemaShape,                      // inherit tone/size/emphasis/align/density
-        sku: z.string(),
+        itemId: z.string(),
         title: z.string(),
-        price: z.number(),
-        currency: z.string().length(3).optional(),
-        imageUrl: z.string().optional(),
-        badge: z.enum(['new', 'sale', 'low-stock']).optional(),
+        subtitle: z.string().optional(),
+        state: z.enum(['active', 'pending', 'blocked']),
       }).passthrough(),
-      allowedActions: ['selectProduct', 'addToCart'],
+      allowedActions: ['selectItem'],
     },
   },
 };
@@ -141,127 +139,102 @@ z.object({ color: z.string(), className: z.string(), width: z.number() })
 z.object({ tone: z.enum(['default','success','warning','danger']), emphasis: z.enum(['low','medium','high']) })
 ```
 
-**Name components after domain concepts, not layouts.** `ProductCard` and `OrderTracker` tell the model *when* to use them. `BoxWithImageAndText` does not. The name is the single strongest hint the model gets.
+**Name components after what they represent, not how they look.** A name that states the concept tells the model *when* to reach for it; `BoxWithImageAndText` does not. The name is the single strongest hint the model gets.
 
-**Constrain with enums wherever a value is finite.** An enum is a guarantee; a free string is a hallucination surface. `badge: z.enum(['new','sale','low-stock'])` can only ever render something you designed. `badge: z.string()` will one day render `"BEST DEAL!!!"`.
+**Constrain with enums wherever a value is finite.** An enum is a guarantee; a free string is a hallucination surface. `state: z.enum(['active','pending','blocked'])` can only ever render something you designed. `state: z.string()` will one day render `"URGENT!!!"`.
 
-**Prefer one rich component over five primitives.** If the model must assemble a product tile from `Card` + `Image` + `Text` + `Badge` + `Button` every time, it will do it inconsistently and sometimes wrongly. `ProductCard` renders correctly by construction — and your design system stays enforced.
+**Prefer one rich component over five primitives.** If the model must assemble the same tile from `Card` + `Image` + `Text` + `Badge` + `Button` every time, it will do it inconsistently and sometimes wrongly. One purpose-built component renders correctly by construction — and your design system stays enforced.
 
-**Require the identifiers you need back.** If you cannot act on a selection without a `sku`, make `sku` required. The model fills required props; optional ones it often skips.
+**Require the identifiers you need back.** If you cannot act on a selection without its id, make that prop required. The model reliably fills required props; optional ones it often skips.
 
 **Keep schemas shallow.** Flat props compose reliably. Deeply nested object props are where models drift — prefer a list of child components over an array-of-objects prop when the items are visual.
 
 **Write the description into the shape.** Enum values, required fields, and precise names carry more weight than prose, because they end up in the JSON Schema the model is constrained by.
 
 ---
+## 4. The recipe — adding one component
 
-## 4. Worked example — an ecommerce catalog
+Five steps, the same for every component. Repeat once per component until the catalog covers what your agent needs to show.
 
-The pattern generalizes; ecommerce is just a concrete instance. Here the agent can browse, recommend, collect a choice, and report order status — without inventing any markup.
+The examples below use placeholder names. Substitute whatever your agent actually has to render.
+
+### Step 1 — name it after the thing it shows
+
+The name is the strongest signal the model gets about *when* to reach for it. Name the concept; the layout is your renderer's business.
+
+```
+GOOD:  <Concept>Card   <Concept>Picker   <Concept>Tracker   <Concept>Summary
+BAD:   BigBox          Panel2            CustomWidget       FlexRowWithIcon
+```
+
+### Step 2 — declare the props the model must supply
+
+Presentational props only. `id`, `component`, `children`, `child`, and `action` are structural — the renderer owns them, never declare them.
 
 ```typescript
-// store-catalog.ts
 import { z } from 'zod';
-import { coreCatalog, styleSchemaShape, type CatalogManifest } from '@alquimia-ai/tools/genui';
+import { styleSchemaShape, type UIComponentDefinition } from '@alquimia-ai/tools/genui';
 
-const def = (name: string, own: z.ZodRawShape, allowedActions?: string[]) => ({
-  name,
-  schema: z.object({ ...styleSchemaShape, ...own }).passthrough(),
-  allowedActions,
-});
-
-const money = z.object({ amount: z.number(), currency: z.string().length(3) });
-
-export const storeCatalog: CatalogManifest = {
-  id: 'https://acme.example/catalogs/store/v1/catalog.json',
-  components: {
-    // Reuse core layout — no reason to reinvent a Stack.
-    Stack: coreCatalog.components.Stack,
-    Grid: coreCatalog.components.Grid,
-    Text: coreCatalog.components.Text,
-    Heading: coreCatalog.components.Heading,
-
-    // ---- domain ----
-    ProductCard: def('ProductCard', {
-      sku: z.string(),
-      title: z.string(),
-      price: money,
-      imageUrl: z.string().optional(),
-      rating: z.number().min(0).max(5).optional(),
-      badge: z.enum(['new', 'sale', 'low-stock', 'bestseller']).optional(),
-      availability: z.enum(['in-stock', 'backorder', 'out-of-stock']).optional(),
-    }, ['selectProduct', 'addToCart']),
-
-    ProductGrid: def('ProductGrid', {
-      columns: z.number().int().min(1).max(4).optional(),
-    }),
-
-    VariantPicker: def('VariantPicker', {
-      label: z.string(),
-      options: z.array(z.object({
-        value: z.string(),
-        label: z.string(),
-        available: z.boolean().optional(),
-      })).min(1),
-    }, ['selectVariant']),
-
-    CartSummary: def('CartSummary', {
-      lines: z.array(z.object({ sku: z.string(), title: z.string(), qty: z.number().int(), total: money })),
-      subtotal: money,
-      shipping: money.optional(),
-      total: money,
-    }, ['checkout', 'editCart']),
-
-    OrderTracker: def('OrderTracker', {
-      orderId: z.string(),
-      status: z.enum(['placed', 'packed', 'shipped', 'out-for-delivery', 'delivered']),
-      eta: z.string().optional(),
-      carrier: z.string().optional(),
-    }, ['trackShipment']),
-  },
+const ItemCard: UIComponentDefinition = {
+  name: 'ItemCard',
+  schema: z.object({
+    ...styleSchemaShape,                               // tone/size/emphasis/align/density
+    itemId: z.string(),                                // required — you need it back
+    title: z.string(),
+    subtitle: z.string().optional(),
+    state: z.enum(['active', 'pending', 'blocked']),   // enum, not free string
+  }).passthrough(),
+  allowedActions: ['selectItem'],
 };
 ```
 
-Note what the schemas do: `availability` and `status` are enums, so the agent can never invent a state your UI has no design for. `sku` is required on `ProductCard`, so a selection always identifies a real product. `price` is a structured `money` object, so currency can't go missing.
+Ask three questions about every prop:
 
-### The matching registry
+| Question | If yes |
+|---|---|
+| Is the set of valid values finite? | `z.enum([...])` — never `z.string()` |
+| Do I need this value back to act on it? | Make it **required** |
+| Is it about appearance rather than meaning? | Delete it — `tone`/`emphasis` already carry intent |
+
+### Step 3 — implement the React component
+
+It receives `A2uiNodeProps`. Read your props off `node`; use `value`/`onChange` if it collects input; use `onAction` if the user can act on it.
 
 ```tsx
-// store-registry.tsx
-import type { A2uiNodeProps } from '@alquimia-ai/ui/components/genui';
-import { coreUiRegistry } from '@alquimia-ai/ui/components/genui';
-
-function ProductCard({ node, onAction }: A2uiNodeProps) {
-  const price = node.price as { amount: number; currency: string };
-  const badge = node.badge as string | undefined;
+function ItemCardView({ node, onAction }: A2uiNodeProps) {
+  const state = node.state as string;
 
   return (
-    <article className="rounded-xl border p-4">
-      {node.imageUrl ? <img src={node.imageUrl as string} alt={node.title as string} /> : null}
-      {badge ? <span data-badge={badge}>{badge}</span> : null}
+    <article data-state={state} className="rounded-xl border p-4">
       <h3>{node.title as string}</h3>
-      <p>{new Intl.NumberFormat(undefined, { style: 'currency', currency: price.currency })
-            .format(price.amount)}</p>
+      {node.subtitle ? <p>{node.subtitle as string}</p> : null}
       <button
-        disabled={node.availability === 'out-of-stock'}
+        disabled={state === 'blocked'}
         onClick={() => node.action && onAction?.(node.action)}
       >
-        {node.availability === 'out-of-stock' ? 'Out of stock' : 'Choose'}
+        Choose
       </button>
     </article>
   );
 }
+```
 
-function ProductGrid({ node, children }: A2uiNodeProps) {
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${(node.columns as number) ?? 3}, 1fr)`, gap: 16 }}>
-      {children}
-    </div>
-  );
-}
+Three archetypes cover nearly everything you will ever author:
 
-function VariantPicker({ node, value, onChange }: A2uiNodeProps) {
+| Archetype | Uses | Behavior |
+|---|---|---|
+| **Display** | `node` | Renders data. No action, no binding — the SDK auto-completes the surface. |
+| **Input** | `node` + `value` + `onChange` | Collects a value into the data model. That model reaches the agent as `data`. |
+| **Actionable** | `node` + `onAction` | Fires `onAction(node.action)`. With `wantResponse`, it completes the tool call. |
+
+A component can be several at once — a card that shows data *and* has a button is display + actionable.
+
+The input archetype is the one people get wrong, so here it is explicitly. Without `onChange`, the value never leaves the browser:
+
+```tsx
+function OptionPickerView({ node, value, onChange }: A2uiNodeProps) {
   const options = node.options as Array<{ value: string; label: string; available?: boolean }>;
+
   return (
     <fieldset>
       <legend>{node.label as string}</legend>
@@ -276,52 +249,106 @@ function VariantPicker({ node, value, onChange }: A2uiNodeProps) {
     </fieldset>
   );
 }
+```
 
-// CartSummary and OrderTracker follow the same shape: read props off `node`,
-// call onAction?.(node.action) for anything the agent should hear about.
+### Step 4 — register both sides
 
-export const storeRegistry: Record<string, React.ComponentType<A2uiNodeProps>> = {
-  ...coreUiRegistry,          // keeps Stack/Grid/Text/Heading rendering
-  ProductCard,
-  ProductGrid,
-  VariantPicker,
-  CartSummary,
-  OrderTracker,
+The catalog entry and the registry key must use the **same name**, or the component renders as a text fallback.
+
+```typescript
+// catalog
+export const myCatalog: CatalogManifest = {
+  id: 'https://acme.example/catalogs/mine/v1/catalog.json',
+  components: { ItemCard, OptionPicker },
+};
+
+// registry
+export const myRegistry = {
+  ...coreUiRegistry,                // keep the core components rendering
+  ItemCard: ItemCardView,
+  OptionPicker: OptionPickerView,
 };
 ```
 
-`VariantPicker` calls `onChange`, so the chosen variant lands in the data model and ships to the agent. `ProductCard` calls `onAction`, so clicking it completes the tool call and names the component that fired — which is how the agent knows *which* product was picked out of twelve.
-
-### Wire it up
+Then catalog to the hook, registry to the renderer:
 
 ```tsx
-const alquimia = useAlquimia({
-  assistantId,
-  adapter,
-  genui: { catalog: storeCatalog },
-});
-
-<AssistantChat alquimia={alquimia} registry={storeRegistry} conversationId={id} />;
+const alquimia = useAlquimia({ assistantId, adapter, genui: { catalog: myCatalog } });
+<AssistantChat alquimia={alquimia} registry={myRegistry} conversationId={id} />;
 ```
 
-That is the whole integration. The hook derives the `render_ui` tool schema, the prompt clause, and the validators from `storeCatalog`, so the agent now composes product UI and nothing else.
+### Step 5 — check it round-trips
 
-### The same pattern in other verticals
+Ask the agent for something that should produce the component, then confirm:
 
-| Vertical | Domain components worth authoring |
+| Symptom | Cause |
 |---|---|
-| **Banking** | `AccountCard` `TransactionList` `TransferForm` `PaymentConfirm` `CardControls` |
-| **Insurance** | `PolicyCard` `CoverageComparison` `ClaimForm` `ClaimTracker` `QuoteBreakdown` |
-| **Logistics** | `ShipmentTracker` `RouteMap` `SlotPicker` `ManifestTable` `ExceptionAlert` |
-| **Healthcare** | `AppointmentSlots` `MedicationList` `SymptomChecklist` `LabResultPanel` `TriageBanner` |
-| **Travel** | `FlightOption` `HotelCard` `ItineraryTimeline` `SeatMap` `FareBreakdown` |
-| **HR / Internal** | `EmployeeCard` `TimeOffRequest` `ApprovalQueue` `OrgChart` `PayslipSummary` |
-
-The recurring shape is the same everywhere: **one card component per domain object, one picker per decision, one tracker per process, one form per action.** If you can name the nouns and the decisions in your domain, you can write the catalog.
+| `[unsupported component: X]` | Catalog name and registry key differ |
+| Renders, but typing changes nothing | Input component is missing `onChange` |
+| Acting on it does nothing | The action lacks `wantResponse: true` |
+| Agent doesn't know what you picked | Missing a required identifier prop |
+| Surface rejected entirely | No component with `id: "root"` — check `validateSurface` errors |
 
 ---
 
-## 5. Publish and version the catalog
+## 5. Assembling the whole catalog
+
+Two things make a catalog pleasant to maintain.
+
+**Use a helper** so every component inherits the style vocabulary and `.passthrough()` without repetition:
+
+```typescript
+import { z } from 'zod';
+import { coreCatalog, styleSchemaShape, type CatalogManifest } from '@alquimia-ai/tools/genui';
+
+const def = (name: string, own: z.ZodRawShape, allowedActions?: string[]) => ({
+  name,
+  schema: z.object({ ...styleSchemaShape, ...own }).passthrough(),
+  allowedActions,
+});
+```
+
+**Reuse core layout.** There is no reason to reinvent a Stack — pull the primitives you want from `coreCatalog` and add only what is yours:
+
+```typescript
+export const myCatalog: CatalogManifest = {
+  id: 'https://acme.example/catalogs/mine/v1/catalog.json',
+  components: {
+    // borrowed from the default catalog
+    Stack: coreCatalog.components.Stack,
+    Grid: coreCatalog.components.Grid,
+    Text: coreCatalog.components.Text,
+
+    // yours
+    ItemCard: def('ItemCard', {
+      itemId: z.string(),
+      title: z.string(),
+      state: z.enum(['active', 'pending', 'blocked']),
+    }, ['selectItem']),
+
+    OptionPicker: def('OptionPicker', {
+      label: z.string(),
+      options: z.array(z.object({
+        value: z.string(),
+        label: z.string(),
+        available: z.boolean().optional(),
+      })).min(1),
+    }, ['selectOption']),
+
+    StatusTracker: def('StatusTracker', {
+      referenceId: z.string(),
+      status: z.enum(['received', 'processing', 'ready', 'closed']),
+      eta: z.string().optional(),
+    }),
+  },
+};
+```
+
+Borrowing layout from `coreCatalog` means the corresponding `coreUiRegistry` entries already render them — spread `coreUiRegistry` into your registry and only implement your own components.
+
+A catalog does not need to be large. A handful of well-named components with tight enums produces better output than forty loose ones, because every name you add is another choice the model can get wrong.
+
+## 6. Publish and version the catalog
 
 The catalog is a contract, so it needs a published, versioned artifact. Compile the authoring catalog with `emitA2uiCatalog` — never hand-write the JSON, or it will drift from what the SDK validates against.
 
@@ -352,25 +379,60 @@ Additive changes (a new optional prop, a new component) do not need a bump.
 
 ---
 
-## 6. Level 3 — move the tool onto the agent spec
+## 7. Level 3 — `source: 'client'` vs `source: 'agent'`
 
-By default (`source: 'client'`) the SDK injects the `render_ui` tool and the prompt clause on every request. If the tool and clause instead live on the **agent spec** in the registry (configured in Studio), set `source: 'agent'` — the SDK then injects nothing and sends no `evaluation_strategy`, which would otherwise replace the spec's tool:
+This setting answers one question: **who tells the agent that it can draw UI?**
+
+For the agent to emit a surface, two things must reach it on every turn:
+
+1. the **`render_ui` tool schema** — the constrained shape it may emit (derived from your catalog)
+2. the **prompt clause** — when to use UI instead of prose, and how the result comes back
+
+They can come from the browser, or from the agent's own configuration. That is the whole difference.
+
+### `source: 'client'` — the default
+
+The SDK injects both on every request. Concretely, `useAlquimia` calls `withTools([buildRenderUiSchema(catalog, allow)])` and adds the clause to `extra_instructions`, and they ride out on the infer body as `evaluation_strategy`.
 
 ```tsx
-const alquimia = useAlquimia({
-  assistantId,
-  adapter,
-  genui: { catalog: storeCatalog, source: 'agent' },
-});
+genui: { catalog: myCatalog }     // source defaults to 'client'
 ```
 
-You still pass the catalog — the SDK needs it to validate and render incoming surfaces. The render/complete loop is identical either way, because it keys off the `ClientToolExecution` stream frame rather than who registered the tool.
+- The agent needs **zero configuration** — a plain agent gains GenUI purely from the frontend.
+- Change your catalog, redeploy the frontend, and the agent composes the new components on the next message. No registry change.
+- Each app can hand the same agent a different catalog.
 
-> **Status:** `source: 'agent'` is wired and unit-tested but has not yet been verified end-to-end against a live agent spec. Prefer `source: 'client'` unless you specifically need the tool defined server-side.
+This is what you want unless you have a specific reason otherwise.
 
----
+### `source: 'agent'`
 
-## 7. Rules that never change
+The `render_ui` tool and the clause are already defined on the **agent spec** in the registry (configured in Studio). The SDK then injects nothing:
+
+```tsx
+genui: { catalog: myCatalog, source: 'agent' }
+```
+
+You still pass `catalog` — the SDK needs it to validate and render incoming surfaces. It just stops *sending* it.
+
+**Why the switch has to exist:** `evaluation_strategy` **replaces** the spec's tools rather than merging with them. If the SDK kept injecting its own while the spec already defined `render_ui`, the client's version would silently clobber the server-side one. `source: 'agent'` is what makes the SDK stay quiet. (This invariant is pinned by `genui-source.test.ts`: no registered client tools ⇒ no `evaluation_strategy` on the wire.)
+
+Use it when the UI capability belongs to the agent itself — governed centrally, identical across every client, versioned with the agent rather than with the frontend.
+
+### Either way, the loop is identical
+
+The render/complete lifecycle keys off the `ClientToolExecution` stream frame, not off who registered the tool. Nothing in your components or catalog changes between the two.
+
+| | `source: 'client'` (default) | `source: 'agent'` |
+|---|---|---|
+| Tool schema + clause come from | the SDK, every request | the agent spec |
+| `evaluation_strategy` on the wire | yes | no |
+| Agent needs configuring | no | yes (Studio) |
+| Change the catalog by | redeploying the frontend | updating the agent spec |
+| Catalog still passed to the hook | yes | yes — for validation + rendering |
+
+> **Status:** `source: 'agent'` is wired and unit-tested but not yet verified end-to-end against a live agent spec. Prefer `source: 'client'` unless you specifically need the tool defined server-side.
+
+## 8. Rules that never change
 
 - The catalog is **abstract** — semantic props (`tone`, `emphasis`, `availability`), never CSS, colors, or HTML.
 - The renderer maps to **your** design system. Appearance is never the agent's decision.
@@ -381,15 +443,15 @@ You still pass the catalog — the SDK needs it to validate and render incoming 
 
 ---
 
-## 8. Checklist
+## 9. Checklist
 
-- [ ] Components named after domain concepts, not layouts
+- [ ] Component named after the thing it shows, not its layout
 - [ ] Props semantic and enum-constrained wherever the value is finite
 - [ ] `styleSchemaShape` spread into every schema
 - [ ] `.passthrough()` on every schema so extra props warn instead of failing
-- [ ] Identifiers you need back (`sku`, `orderId`, …) marked required
+- [ ] Identifiers you need back marked required, not optional
 - [ ] `allowedActions` declared per component
-- [ ] Registry key for **every** catalog component name
+- [ ] Registry key for **every** catalog component name — identical spelling, or it falls back to text
 - [ ] Inputs call `onChange` (or their value never reaches the agent)
 - [ ] Actions fire `onAction(node.action)` — no invented names
 - [ ] Catalog artifact emitted with `emitA2uiCatalog`, id versioned

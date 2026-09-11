@@ -1,6 +1,6 @@
 ---
 name: alquimia-sdk
-description: Use when building an application that communicates with the Alquimia AI runtime. Covers SDK initialization with adapters, useAlquimia hook, server proxy setup, GenUI (generative UI — agents that render real interactive components in chat, with the default catalog or your own domain components), and optional features (TTS, STT, user tools, attachments, sidebar, worklog). Supports Next.js, SPA + server, or direct backend calls. Works with the full Alquimia UI library or with the user's own custom components.
+description: Use when building an application that communicates with the Alquimia AI runtime. Covers SDK initialization with adapters, useAlquimia hook, server proxy setup, GenUI (generative UI — agents that render real interactive components in chat, with the default catalog or components you define yourself), and optional features (TTS, STT, user tools, attachments, sidebar, worklog). Supports Next.js, SPA + server, or direct backend calls. Works with the full Alquimia UI library or with the user's own custom components.
 ---
 
 # Alquimia SDK — Application Builder
@@ -53,7 +53,7 @@ Present the options as a numbered/lettered menu so the user can reply with just 
 > If F, also ask:
 > ```
 > F1) Default catalog  — the agent composes from ~43 shipped components
-> F2) Your components  — your own domain catalog (ProductCard, PolicyCard, ShipmentTracker, ...)
+> F2) Your components  — author your own catalog so the agent composes components you define
 > ```
 
 ---
@@ -122,4 +122,4 @@ The `useAlquimia` hook creates the SDK internally and returns the full chat stat
 
 ### GenUI in one paragraph
 
-With `useAlquimia({ genui })`, the agent can answer with **real interactive UI** instead of prose. It calls a `render_ui` client tool whose arguments are a declarative component tree; the SDK validates that tree against a **catalog**, renders it with React components you control, and posts the user's input back so the agent continues. The agent never emits markup — only component names and props you authorized. Point the catalog at your own domain components and the same agent composes your product cards, policy comparisons, or shipment trackers. See `features/genui.md`, then `features/genui-custom-components.md`.
+With `useAlquimia({ genui })`, the agent can answer with **real interactive UI** instead of prose. It calls a `render_ui` client tool whose arguments are a declarative component tree; the SDK validates that tree against a **catalog**, renders it with React components you control, and posts the user's input back so the agent continues. The agent never emits markup — only component names and props you authorized. Point the catalog at components you define and the same agent composes those instead, in your design system. See `features/genui.md`, then `features/genui-custom-components.md`.

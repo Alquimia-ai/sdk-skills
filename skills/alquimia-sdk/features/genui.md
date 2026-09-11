@@ -4,7 +4,7 @@ GenUI lets the agent render real, interactive UI in chat — forms, cards, chart
 
 **UI is data, never code.** The agent never emits HTML, CSS, or JS. It composes only from an authorized **catalog** of component names, and each name maps to a React component you control.
 
-> Building components for your own domain (ecommerce, banking, logistics, healthcare…)? Read `features/genui-custom-components.md` after this file. This one covers the default catalog; that one covers authoring your own.
+> Need components the default catalog doesn't have? Read `features/genui-custom-components.md` after this file — it's a five-step recipe for adding any component you want. This file covers the default catalog; that one covers building your own.
 
 ---
 
@@ -62,7 +62,7 @@ const alquimia = useAlquimia({
 |---|---|
 | `catalog` | The `CatalogManifest` the agent composes against. Defaults to `coreCatalog` (~43 components). |
 | `allow` | Restrict the agent to a subset of catalog components. `'all'` or an array of names. Defaults to all. |
-| `source` | `'client'` (default) — the SDK injects the tool + clause on every request. `'agent'` — the tool lives on the agent spec; the SDK injects nothing and only runs the lifecycle. See `genui-custom-components.md` §6. |
+| `source` | Who tells the agent it can draw: `'client'` (default) — the SDK injects the `render_ui` tool + prompt clause on every request, so the agent needs no configuration. `'agent'` — the tool is defined on the agent spec in Studio, so the SDK injects nothing. See `genui-custom-components.md` §7. |
 
 Narrowing `allow` is the cheapest quality lever available. A smaller surface area means the model picks better components and hallucinates less:
 
@@ -193,7 +193,7 @@ interface SurfaceResult {
 }
 ```
 
-`componentId` matters more than it looks. When several elements share one action name — a grid of product cards that all emit `selectItem` — it is the only thing telling the agent *which* one the user clicked. Without it the agent has to ask "which one did you pick?", which reads as a broken assistant.
+`componentId` matters more than it looks. When several elements share one action name — a grid of cards that all emit `selectItem` — it is the only thing telling the agent *which* one the user clicked. Without it the agent has to ask "which one did you pick?", which reads as a broken assistant.
 
 ---
 

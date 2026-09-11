@@ -29,7 +29,7 @@ Builds an application that communicates with the Alquimia AI runtime. The skill 
 - Ask to set up `@alquimia-ai/tools` or `@alquimia-ai/ui`
 - Need a server proxy for the Alquimia SSE stream
 - Add Alquimia features like TTS, STT, user tools, attachments, or a reasoning sidebar
-- Want the agent to render real interactive UI in chat (**GenUI**) — with the shipped catalog or your own domain components
+- Want the agent to render real interactive UI in chat (**GenUI**) — with the shipped catalog or components you define yourself
 
 **What it does:**
 
@@ -45,7 +45,7 @@ Based on your answers it covers:
 - **Server proxy setup** — `createNextJsRouteHandlers`, `createAlquimiaProxyHandler`, or a ~30-line Hono SSE proxy, since `EventSource` can't send auth headers from the browser.
 - **Chat UI** — composing `AssistantMessageArea` / `AssistantInput`, theming, and `alq--` utility classes — or wiring the hook's return values into your own components.
 - **Optional features** — TTS/STT providers, structured user tools, file attachments, the reasoning/thinkings sidebar, and the agent execution trace (worklog).
-- **GenUI** — generative UI: the agent answers with real interactive components (forms, cards, charts, trackers) instead of prose. Covers the `render_ui` loop, the shipped ~43-component catalog, and **authoring your own catalog and components** so the agent composes your domain — product cards, policy comparisons, shipment trackers — in your design system.
+- **GenUI** — generative UI: the agent answers with real interactive components (forms, cards, charts, trackers) instead of prose. Covers the `render_ui` loop, the shipped ~43-component catalog, and **authoring your own catalog and components** — a five-step recipe for making the agent compose any component you define, in your design system.
 
 ## The SDK
 
