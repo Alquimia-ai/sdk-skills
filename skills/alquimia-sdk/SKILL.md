@@ -1,6 +1,6 @@
 ---
 name: alquimia-sdk
-description: Use when building an application that communicates with the Alquimia AI runtime. Covers SDK initialization with adapters, useAlquimia hook, server proxy setup, GenUI (generative UI — agents that render real interactive components in chat, with the default catalog or components you define yourself), and optional features (TTS, STT, user tools, attachments, sidebar, worklog). Supports Next.js, SPA + server, or direct backend calls. Works with the full Alquimia UI library or with the user's own custom components.
+description: Use when building an application that communicates with the Alquimia AI runtime. Covers SDK initialization with adapters, useAlquimia hook, server proxy setup, GenUI (generative UI — agents that render real interactive components in chat, with the default catalog or components you define yourself), and optional features (TTS, STT, voice/audio inference, multimodal image input, user tools, attachments, sidebar, worklog, version-pinned agents). Supports Next.js, SPA + server, or direct backend calls. Works with the full Alquimia UI library or with the user's own custom components.
 ---
 
 # Alquimia SDK — Application Builder
@@ -47,8 +47,13 @@ Present the options as a numbered/lettered menu so the user can reply with just 
 > E) Sidebar          — reasoning / thinkings panel (requires Full Alquimia UI)
 > F) GenUI           — the agent renders real interactive UI in chat (forms, cards, charts)
 > G) Worklog         — normalized agent execution trace ("show your work")
+> H) Audio inference — the AGENT transcribes the user and speaks its reply (runtime-side)
 > ```
 > Leave blank for none.
+>
+> A/B run the audio in the browser with a provider you configure. H hands the audio to the
+> agent as part of the turn. If the user describes "voice chat" without saying where the
+> audio is processed, ask which they mean.
 >
 > If F, also ask:
 > ```
@@ -88,6 +93,7 @@ All file paths are relative to the skill root.
 | Feature | File |
 |---------|------|
 | TTS or STT | `features/tts-stt.md` |
+| Audio inference | `features/audio-inference.md` |
 | User Tools | `features/tools.md` |
 | Attachments | `features/attachments.md` |
 | Sidebar | `features/sidebar.md` |
@@ -107,6 +113,12 @@ The Alquimia SDK has two packages:
 - **`@alquimia-ai/tools`** — Core runtime: `AlquimiaSDK` class, `useAlquimia` hook, adapters (`createNextJsAdapter`, `createFetchAdapter`), server proxy (`createAlquimiaProxyHandler`, `createNextJsRouteHandlers`), providers (TTS/STT, image gen, characterization, ratings, logging), GenUI protocol (`/genui` — catalog, surface types, validation), execution trace (`/worklog`).
 - **`@alquimia-ai/ui`** *(optional)* — React component library: `AssistantMessageArea`, `AssistantInput`, `SpeechToText`, `Whisper`, `ThinkIndicator`, `Loader`, `Drawer`, `AlquimiaUIProvider`, atoms (Button, Dialog, Tabs…), and the GenUI renderer (`/components/genui` — `A2uiRenderer`, `coreUiRegistry`, `AssistantChat`). Based on shadcn, ships with theme CSS files.
 
+### Runtime compatibility
+
+Current target: **alquimia-runtime v0.5.2 / alquimia-core v0.5.3**. Features that need a
+specific floor are marked where they appear — audio inference needs ≥ 0.5.1, and
+`withVersionTag()` needs ≥ 0.5.2 (older runtimes ignore the parameter rather than failing).
+
 ### How it connects
 
 The SDK uses an **adapter** to resolve request URLs. Two built-in adapters:
@@ -117,6 +129,10 @@ The SDK uses an **adapter** to resolve request URLs. Two built-in adapters:
 You can also implement a custom `AlquimiaAdapter` (e.g. to split infer/stream across different servers).
 
 **Important:** The SSE stream endpoint uses `EventSource`, which **cannot send custom headers**. If the backend or its gateway requires `Authorization` on all requests, the stream will fail in pure client mode. A server-side proxy (even a tiny one) is needed to inject the auth header on the stream. See Mode 3 in `backend-routes.md`.
+
+A fourth endpoint, `POST /event/tool-completion`, carries the browser's answer back when the
+agent calls a client tool. **Client tools and GenUI do not work without its server route** —
+the run parks and never resumes. See `setup/backend-routes.md`.
 
 The `useAlquimia` hook creates the SDK internally and returns the full chat state (messages, input, loading flags, send/cancel actions, attachments, audio recording). When the user wants custom UI, they wire these return values to their own components. When using Full Alquimia UI, they pass them to `AssistantMessageArea` and `AssistantInput`.
 

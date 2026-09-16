@@ -108,6 +108,44 @@ alquimia.sdk.withLoggerProvider(provider);
 > type). The hook also no longer returns `evaluationStrategy` — the
 > runtime stopped reporting it.
 
+### Sending a turn directly
+
+`handleSubmit` covers the normal path. When you drive the SDK yourself:
+
+```typescript
+await alquimia.sdk.sendMessage(query, options);
+```
+
+`query` accepts the runtime's full `Content` shape — a string, or an OpenAI-style list of
+content parts for multimodal input:
+
+```typescript
+await alquimia.sdk.sendMessage([
+  { type: 'text', text: 'what is in this picture?' },
+  { type: 'image_url', image_url: { url: imageUrl, detail: 'low' } },
+]);
+```
+
+`options` is `{ traceParent?, inputAudio?, outputAudio? }`. Passing a bare traceparent string
+as the second argument still works — the old `sendMessage(query, traceParent)` signature is
+unchanged. See `features/audio-inference.md` for `inputAudio` / `outputAudio`.
+
+### Pinning a registry version
+
+The runtime keeps cached versions of an agentspace. Two ways to target one:
+
+```typescript
+// Works on every runtime version — the runtime parses the tag out of the path
+const sdk = new AlquimiaSDK('prod/support-agent:v1.2', adapter);
+
+// Sends ?version_tag= on infer — requires runtime >= 0.5.2, older runtimes ignore it
+alquimia.sdk.withVersionTag('v1.2');
+```
+
+Either way the runtime answers with the version it actually resolved. The SDK stores it and
+replays it on the tool-completion half of the turn, so a client tool cannot land on a different
+snapshot than the one that started the run. Read it back with `alquimia.sdk.getVersionTag()`.
+
 ---
 
 ## 3. Conversation ID
@@ -181,20 +219,28 @@ useEffect(() => {
 
 Until `conversationId` is non-null, disable send / show loading (same as waiting on any async init).
 
-### C. Framework-agnostic server storage
+### C. Your own server storage
 
-`initConversation(storage, reset?, topicId?)` from `@alquimia-ai/tools/actions` still accepts an injectable `SessionStorage` — useful when you are **not** using the built-in Next cookie action but want the same **topic map vs single-session** behavior wired to Redis, your own cookies, etc.
+There is **no** injectable-storage variant. `@alquimia-ai/tools/actions` re-exports the same
+`initConversation(reset?, topicId?)` as `/next` — it is `"use server"` and reads `cookies()`
+from `next/headers`, so it only works inside Next.js.
+
+For Redis, a session table, or your own cookie handling, write the few lines yourself and feed
+the result to `withConversationId`. The only contract the SDK cares about is a stable string
+per conversation:
 
 ```typescript
-import { initConversation } from '@alquimia-ai/tools/actions';
-import type { SessionStorage } from '@alquimia-ai/tools/actions';
-
-const storage: SessionStorage = {
-  get(key) { return cookies().get(key)?.value; },
-  set(key, value) { cookies().set(key, value); },
-};
-
-await initConversation(storage, true, topicId);
+// your server
+async function getConversationId(userId: string, topicId?: string, reset = false) {
+  const key = topicId ? `alquimia:${userId}:${topicId}` : `alquimia:${userId}`;
+  if (!reset) {
+    const existing = await redis.get(key);
+    if (existing) return existing;
+  }
+  const id = crypto.randomUUID();
+  await redis.set(key, id);
+  return id;
+}
 ```
 
 ---

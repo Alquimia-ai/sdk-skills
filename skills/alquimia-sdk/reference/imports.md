@@ -34,9 +34,12 @@ import {
   deleteResource,
 } from '@alquimia-ai/tools/actions';          // generic CRUD helpers
 import { handleApmRequest } from '@alquimia-ai/tools/actions';  // APM telemetry proxy
-import { initConversation } from '@alquimia-ai/tools/actions';  // session management (SessionStorage — §C in sdk-init.md)
-import type { SessionStorage } from '@alquimia-ai/tools/actions';
+import { initConversation } from '@alquimia-ai/tools/actions';  // same Next-only server action as /next
 ```
+
+> `initConversation` is `"use server"` and reads `cookies()` from `next/headers` — it is **not**
+> framework-agnostic despite living under `/actions`, and there is no injectable-storage
+> variant. For your own storage, see §C in `core/sdk-init.md`.
 
 ### Providers
 
@@ -125,6 +128,7 @@ import type {
   WorklogNode,
   WorklogRecord,
   WorklogSummary,
+  WorklogVerificationResult,
   NodeKind,
   NodeStatus,
   RunStatus,
@@ -157,9 +161,23 @@ import type {
   AttachmentPayload,
   AIMessageChunk,
   TTSResult,
-  WhisperProvider,
   RatingData,
+  // runtime wire shapes
+  CommonAttributes,      // infer response — includes `versiontag`
+  Content,               // string | ContentPart[] — a multimodal query
+  ContentPart,
+  TextContentPart,
+  ImageContentPart,
+  NonStandardContentPart,
+  RuntimeBlob,           // what uploadAttachment resolves to; goes in `inputAudio`
 } from '@alquimia-ai/tools/types';
+```
+
+Two types commonly mis-imported from `/types` — they live elsewhere:
+
+```typescript
+import type { AlquimiaSDKOptions } from '@alquimia-ai/tools/adapters';
+import { WhisperProvider } from '@alquimia-ai/tools/providers';   // abstract class, not a type
 ```
 
 ---
@@ -237,7 +255,7 @@ import {
   Sidebar,
   CallOut, CallOutDate, CallOutResponse, CallOutActions,
   RatingStars, RatingThumbs, RatingComment,
-  AssistantButton, AssistantSuggestions,
+  AssistantButton,
   SonnerToaster,
 } from '@alquimia-ai/ui/components/molecules';
 ```
