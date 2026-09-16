@@ -1,6 +1,12 @@
-# Text-to-Speech & Speech-to-Text
+# Text-to-Speech & Speech-to-Text (client-side)
 
 Both features use a `WhisperProvider` passed to the hook via the `providers.whisper` config.
+The audio pipeline runs **in the browser**, against whatever vendor you configure — the agent
+is not involved and nothing about it appears in the worklog.
+
+> If the agent itself should transcribe the user and speak its reply, that is a different
+> feature: `features/audio-inference.md`. Pick this file when the app owns the audio, that one
+> when the agent does.
 
 ---
 

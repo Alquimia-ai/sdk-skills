@@ -4,11 +4,17 @@
 
 The SDK uses an **adapter** to resolve three endpoint URLs, then calls them from the browser:
 
-| Call | Method | URL resolved by adapter |
-|------|--------|------------------------|
-| Chat infer | POST (axios) | `adapter.resolveInferUrl(assistantId)` |
-| Stream | GET SSE (EventSource) | `adapter.resolveStreamUrl(streamId)` |
-| Blob upload (attachments) | POST (axios) | `adapter.resolveBlobUploadUrl()` |
+| Call | Method | URL resolved by adapter | Needed for |
+|------|--------|------------------------|------------|
+| Chat infer | POST (axios) | `adapter.resolveInferUrl(assistantId)` | always |
+| Stream | GET SSE (EventSource) | `adapter.resolveStreamUrl(streamId)` | always |
+| Blob upload | POST (axios) | `adapter.resolveBlobUploadUrl()` | attachments, audio input |
+| Tool completion | POST (axios) | `adapter.resolveToolCompletionUrl()` | client tools, **GenUI** |
+
+**If you are implementing GenUI or client tools, the tool-completion route is not optional.**
+The agent parks the task waiting for the browser's answer; without that route the surface
+renders, the user submits, and the run stalls. Both built-in adapters resolve the URL by
+default — it is the *server* route that has to exist.
 
 The SDK **never adds an `Authorization` header** itself. In proxied mode (Mode 1 & 2), your server injects the API key.
 
@@ -31,9 +37,10 @@ Use `createNextJsRouteHandlers()` — each route file is ~5 lines.
 import { createNextJsAdapter } from '@alquimia-ai/tools/adapters/next';
 
 const adapter = createNextJsAdapter({
-  inferRoute: '/api/chat',           // default
-  streamRoute: '/api/stream',        // default
-  blobUploadRoute: '/api/blob/upload', // default
+  inferRoute: '/api/chat',                     // default
+  streamRoute: '/api/stream',                  // default
+  blobUploadRoute: '/api/blob/upload',         // default
+  toolCompletionRoute: '/api/tool-completion', // default
 });
 ```
 
@@ -77,6 +84,21 @@ const handlers = createNextJsRouteHandlers({
 export const POST = handlers.handleBlobUpload;
 ```
 
+```typescript
+// app/api/tool-completion/route.ts  (client tools + GenUI; also no [...path])
+import { createNextJsRouteHandlers } from '@alquimia-ai/tools/next';
+
+const handlers = createNextJsRouteHandlers({
+  assistantBaseUrl: process.env.ASSISTANT_BASEURL!,
+  apiKey: process.env.ALQUIMIA_ASSISTANT_API_KEY!,
+});
+
+export const POST = handlers.handleToolCompletion;
+```
+
+Neither of the last two takes a `[...path]` segment: identity travels in headers, and the
+pending tool call is correlated by `control_id` in the body.
+
 `createNextJsRouteHandlers` wraps the framework-agnostic `createAlquimiaProxyHandler` with Next.js App Router context param extraction. Optional config: `inferRoute` (default `'event/infer'`), `streamRoute` (default `'event/stream'`), `blobUploadRoute` (default `'context/blob/upload'`).
 
 ### Environment variables
@@ -103,6 +125,7 @@ const adapter = createFetchAdapter({
   inferPath: '/chat',                     // default
   streamPath: '/stream',                  // default
   blobUploadPath: '/blob/upload',         // default
+  toolCompletionPath: '/tool-completion', // default
 });
 ```
 
@@ -118,11 +141,13 @@ const handler = createAlquimiaProxyHandler({
   inferRoute: 'event/infer',
   streamRoute: 'event/stream',
   blobUploadRoute: 'context/blob/upload',
+  toolCompletionRoute: 'event/tool-completion',
 });
 
 // handler.handleInfer(request, pathSuffix)  → Response
 // handler.handleStream(request, streamId)   → Response
 // handler.handleBlobUpload(request)         → Response
+// handler.handleToolCompletion(request)     → Response
 ```
 
 The handler accepts Web `Request` objects and returns Web `Response` objects — wire it into your framework's routing.
@@ -203,6 +228,7 @@ app.get('/stream/*', (c) =>
   handler.handleStream(c.req.raw, c.req.path.replace(/^\/stream\//, '')),
 );
 app.post('/blob/upload', (c) => handler.handleBlobUpload(c.req.raw));
+app.post('/tool-completion', (c) => handler.handleToolCompletion(c.req.raw));
 ```
 
 > Named params (`/stream/:streamId`) work fine in Hono v4 — only the `*`

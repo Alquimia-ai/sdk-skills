@@ -54,6 +54,25 @@ interface WorklogNode {
 
 Command and response frames sharing a `control_id` are merged into one node, so a step appears once with both sides attached rather than twice.
 
+`NodeKind` is the semantic bucket a step falls into — use it to pick an icon, a colour, or to
+filter the tree:
+
+| `kind` | Event classes |
+|---|---|
+| `answer` | `AssistantInference(+Response)` — the run envelope |
+| `safeguard` | `ShieldInference(+Response)`, `ShieldBlockedResponse` |
+| `reasoning` | `ResponseInference(+Response)` |
+| `tool` | `ServerToolExecution`, `BuiltinToolExecution`, `ClientToolExecution`, `UnknownToolExecution`, `ToolSchema`, `HumanApprovalRequired`, and their responses |
+| `a2a` | `A2AInference`, `AgentDiscovery(+Response)` |
+| `memory` | `ContextPersistence`, `ContextFlush(+Response)` |
+| `knowledge` | `KnowledgeRetrieval(+Response)` — RAG lookups |
+| `speech` | `SpeechTranscription(+Response)`, `SpeechSynthesis(+Response)` — see `features/audio-inference.md` |
+| `unknown` | anything unregistered |
+
+An event class the registry does not know **does not error** — it renders under `unknown` with
+the raw class name. So a trace that suddenly shows `unknown` nodes usually means the runtime
+is newer than the SDK, not that something failed.
+
 Rendering it is an ordinary recursive walk:
 
 ```tsx
@@ -98,4 +117,4 @@ ingest(frameToRecord(rawSseFrame));
 | `frameToRecord(frame)` | Normalize a raw SSE frame into a `WorklogRecord` |
 | `EVENT_REGISTRY` / `resolveInterpreter(eventClass)` | How an event class maps to tree behavior — extend for custom event classes |
 
-Runtime v0.5.0+ records carry `entry_hash` / `previous_hash` for a tamper-evident chain; they are optional on SSE frames.
+Runtime v0.5.0+ records carry `entry_hash` / `previous_hash` for a tamper-evident chain; they are optional on SSE frames. `GET /worklog/{task_id}/verify` walks that chain server-side and returns a `WorklogVerificationResult` (typed in `@alquimia-ai/tools/worklog`); it is audit surface, so call it from your backend rather than the browser.
