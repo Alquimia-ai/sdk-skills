@@ -7,6 +7,7 @@
 ```typescript
 import { AlquimiaSDK } from '@alquimia-ai/tools/sdk';
 import { useAlquimia, useRatings } from '@alquimia-ai/tools/hooks';
+import type { ToolApproval, UseAlquimiaConfig } from '@alquimia-ai/tools/hooks';
 ```
 
 ### Adapters
@@ -121,6 +122,12 @@ import {
   initialWorklogState,
   EVENT_REGISTRY,
   resolveInterpreter,
+  // human-approval gates, derived from records (tools ≥ 2.8.0)
+  foldApprovals,
+  reduceApprovals,
+  listApprovals,
+  pendingApprovals,
+  initialApprovalsState,
 } from '@alquimia-ai/tools/worklog';
 
 import type {
@@ -132,6 +139,9 @@ import type {
   NodeKind,
   NodeStatus,
   RunStatus,
+  ApprovalsState,
+  ApprovalRequest,
+  ApprovalDecision,
 } from '@alquimia-ai/tools/worklog';
 ```
 
@@ -170,6 +180,9 @@ import type {
   ImageContentPart,
   NonStandardContentPart,
   RuntimeBlob,           // what uploadAttachment resolves to; goes in `inputAudio`
+  ToolApprovalEvent,     // body of POST /event/tool-approval
+  ToolApprovalResult,    // what approveTool / submitToolApproval resolve to
+  ToolApprovalOutcome,
 } from '@alquimia-ai/tools/types';
 ```
 
@@ -213,10 +226,13 @@ import type {
 import {
   AssistantMessageArea,
   AssistantInput,
+  ToolApprovalCard,     // ui ≥ 2.3.0
   SpeechToText,
   Whisper,
   RatingDialog,
 } from '@alquimia-ai/ui/components/organisms';
+
+import type { ToolApprovalCardProps, ToolApprovalView } from '@alquimia-ai/ui/components/organisms';
 ```
 
 ### Atoms (primitive UI)
@@ -301,13 +317,13 @@ import { cn } from '@alquimia-ai/ui/lib/utils';
 |---|---|
 | `@alquimia-ai/tools` | Main index (sdk, hooks, providers, types, utils, actions) |
 | `@alquimia-ai/tools/sdk` | `AlquimiaSDK` class |
-| `@alquimia-ai/tools/hooks` | `useAlquimia`, `useRatings` |
+| `@alquimia-ai/tools/hooks` | `useAlquimia`, `useRatings`, `ToolApproval` type |
 | `@alquimia-ai/tools/types` | TypeScript types |
 | `@alquimia-ai/tools/providers` | All provider classes |
 | `@alquimia-ai/tools/adapters` | `AlquimiaAdapter` interface, `AlquimiaSDKOptions` |
 | `@alquimia-ai/tools/adapters/next` | `createNextJsAdapter()` |
 | `@alquimia-ai/tools/adapters/fetch` | `createFetchAdapter()` |
-| `@alquimia-ai/tools/next` | `createNextJsRouteHandlers()` + deprecated `handleChatRequest`/`handleStreamRequest` + `initConversation` (Next.js) |
+| `@alquimia-ai/tools/next` | `createNextJsRouteHandlers()` (incl. `handleToolApproval`) + deprecated `handleChatRequest`/`handleStreamRequest` + `initConversation` (Next.js) |
 | `@alquimia-ai/tools/proxy` | `createAlquimiaProxyHandler()` |
 | `@alquimia-ai/tools/actions` | Framework-agnostic server actions (CRUD helpers, APM proxy, session w/ `SessionStorage` interface) |
 
@@ -390,6 +406,8 @@ interface AlquimiaAdapter {
   resolveInferUrl(assistantId: string): string;
   resolveStreamUrl(streamId: string): string;
   resolveBlobUploadUrl(): string;   // v2.1 — replaced resolveAttachmentUrl(streamId, attachmentId)
+  resolveToolCompletionUrl?(): string; // client tools + GenUI
+  resolveToolApprovalUrl?(): string;   // human approval (tools ≥ 2.8.0)
   getHeaders?(): Record<string, string>;
 }
 
