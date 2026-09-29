@@ -69,6 +69,10 @@ filter the tree:
 | `speech` | `SpeechTranscription(+Response)`, `SpeechSynthesis(+Response)` — see `features/audio-inference.md` |
 | `unknown` | anything unregistered |
 
+A `HumanApprovalRequired` node is titled `Approval required: <tool>` and stays `pending` until
+someone answers it. The worklog only *shows* it — to answer it, see `features/tool-approval.md`
+(and note approvals are tracked by the hook even with the worklog off).
+
 An event class the registry does not know **does not error** — it renders under `unknown` with
 the raw class name. So a trace that suddenly shows `unknown` nodes usually means the runtime
 is newer than the SDK, not that something failed.

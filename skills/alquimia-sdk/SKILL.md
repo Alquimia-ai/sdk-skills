@@ -1,6 +1,6 @@
 ---
 name: alquimia-sdk
-description: Use when building an application that communicates with the Alquimia AI runtime. Covers SDK initialization with adapters, useAlquimia hook, server proxy setup, GenUI (generative UI — agents that render real interactive components in chat, with the default catalog or components you define yourself), and optional features (TTS, STT, voice/audio inference, multimodal image input, user tools, attachments, sidebar, worklog, version-pinned agents). Supports Next.js, SPA + server, or direct backend calls. Works with the full Alquimia UI library or with the user's own custom components.
+description: Use when building an application that communicates with the Alquimia AI runtime. Covers SDK initialization with adapters, useAlquimia hook, server proxy setup, GenUI (generative UI — agents that render real interactive components in chat, with the default catalog or components you define yourself), and optional features (TTS, STT, voice/audio inference, multimodal image input, user tools, attachments, sidebar, worklog, human approval of tool calls, version-pinned agents). Supports Next.js, SPA + server, or direct backend calls. Works with the full Alquimia UI library or with the user's own custom components.
 ---
 
 # Alquimia SDK — Application Builder
@@ -48,8 +48,12 @@ Present the options as a numbered/lettered menu so the user can reply with just 
 > F) GenUI           — the agent renders real interactive UI in chat (forms, cards, charts)
 > G) Worklog         — normalized agent execution trace ("show your work")
 > H) Audio inference — the AGENT transcribes the user and speaks its reply (runtime-side)
+> I) Tool approval   — let a person approve / reject tool calls the agent needs permission for
 > ```
 > Leave blank for none.
+>
+> Recommend I whenever the agent holds tools that can be classified `destructive` (e.g. an MCP
+> server): the runtime parks those calls for approval, and without I the conversation hangs.
 >
 > A/B run the audio in the browser with a provider you configure. H hands the audio to the
 > agent as part of the turn. If the user describes "voice chat" without saying where the
@@ -100,6 +104,7 @@ All file paths are relative to the skill root.
 | GenUI | `features/genui.md` — always |
 | GenUI with own components (F2) | `features/genui-custom-components.md` — **plus** `features/genui.md` |
 | Worklog | `features/worklog.md` |
+| Tool approval | `features/tool-approval.md` |
 
 ### Reference (import paths, types, env vars):
 `reference/imports.md`
@@ -111,7 +116,7 @@ All file paths are relative to the skill root.
 The Alquimia SDK has two packages:
 
 - **`@alquimia-ai/tools`** — Core runtime: `AlquimiaSDK` class, `useAlquimia` hook, adapters (`createNextJsAdapter`, `createFetchAdapter`), server proxy (`createAlquimiaProxyHandler`, `createNextJsRouteHandlers`), providers (TTS/STT, image gen, characterization, ratings, logging), GenUI protocol (`/genui` — catalog, surface types, validation), execution trace (`/worklog`).
-- **`@alquimia-ai/ui`** *(optional)* — React component library: `AssistantMessageArea`, `AssistantInput`, `SpeechToText`, `Whisper`, `ThinkIndicator`, `Loader`, `Drawer`, `AlquimiaUIProvider`, atoms (Button, Dialog, Tabs…), and the GenUI renderer (`/components/genui` — `A2uiRenderer`, `coreUiRegistry`, `AssistantChat`). Based on shadcn, ships with theme CSS files.
+- **`@alquimia-ai/ui`** *(optional)* — React component library: `AssistantMessageArea`, `AssistantInput`, `ToolApprovalCard`, `SpeechToText`, `Whisper`, `ThinkIndicator`, `Loader`, `Drawer`, `AlquimiaUIProvider`, atoms (Button, Dialog, Tabs…), and the GenUI renderer (`/components/genui` — `A2uiRenderer`, `coreUiRegistry`, `AssistantChat`). Based on shadcn, ships with theme CSS files.
 
 ### Runtime compatibility
 
@@ -132,7 +137,9 @@ You can also implement a custom `AlquimiaAdapter` (e.g. to split infer/stream ac
 
 A fourth endpoint, `POST /event/tool-completion`, carries the browser's answer back when the
 agent calls a client tool. **Client tools and GenUI do not work without its server route** —
-the run parks and never resumes. See `setup/backend-routes.md`.
+the run parks and never resumes. A fifth, `POST /event/tool-approval`, answers a tool call the
+runtime parked for human approval (`HumanApprovalRequired`) — same story: no route, no resume.
+See `setup/backend-routes.md` and `features/tool-approval.md`.
 
 The `useAlquimia` hook creates the SDK internally and returns the full chat state (messages, input, loading flags, send/cancel actions, attachments, audio recording). When the user wants custom UI, they wire these return values to their own components. When using Full Alquimia UI, they pass them to `AssistantMessageArea` and `AssistantInput`.
 

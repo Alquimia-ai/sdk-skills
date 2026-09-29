@@ -2,7 +2,7 @@
 
 ## How the SDK makes requests
 
-The SDK uses an **adapter** to resolve three endpoint URLs, then calls them from the browser:
+The SDK uses an **adapter** to resolve the endpoint URLs, then calls them from the browser:
 
 | Call | Method | URL resolved by adapter | Needed for |
 |------|--------|------------------------|------------|
@@ -10,11 +10,17 @@ The SDK uses an **adapter** to resolve three endpoint URLs, then calls them from
 | Stream | GET SSE (EventSource) | `adapter.resolveStreamUrl(streamId)` | always |
 | Blob upload | POST (axios) | `adapter.resolveBlobUploadUrl()` | attachments, audio input |
 | Tool completion | POST (axios) | `adapter.resolveToolCompletionUrl()` | client tools, **GenUI** |
+| Tool approval | POST (axios) | `adapter.resolveToolApprovalUrl()` | tool calls that need human approval (tools ≥ 2.8.0) |
 
 **If you are implementing GenUI or client tools, the tool-completion route is not optional.**
 The agent parks the task waiting for the browser's answer; without that route the surface
 renders, the user submits, and the run stalls. Both built-in adapters resolve the URL by
 default — it is the *server* route that has to exist.
+
+**The same holds for tool approval.** If the agent can hit a tool the runtime classifies as
+needing approval (`destructive` operations always do), the run parks on a
+`HumanApprovalRequired` until `POST /event/tool-approval` answers it. See
+`features/tool-approval.md`.
 
 The SDK **never adds an `Authorization` header** itself. In proxied mode (Mode 1 & 2), your server injects the API key.
 
@@ -41,6 +47,7 @@ const adapter = createNextJsAdapter({
   streamRoute: '/api/stream',                  // default
   blobUploadRoute: '/api/blob/upload',         // default
   toolCompletionRoute: '/api/tool-completion', // default
+  toolApprovalRoute: '/api/tool-approval',     // default
 });
 ```
 
@@ -96,8 +103,20 @@ const handlers = createNextJsRouteHandlers({
 export const POST = handlers.handleToolCompletion;
 ```
 
-Neither of the last two takes a `[...path]` segment: identity travels in headers, and the
-pending tool call is correlated by `control_id` in the body.
+```typescript
+// app/api/tool-approval/route.ts  (human approval of tool calls; no [...path])
+import { createNextJsRouteHandlers } from '@alquimia-ai/tools/next';
+
+const handlers = createNextJsRouteHandlers({
+  assistantBaseUrl: process.env.ASSISTANT_BASEURL!,
+  apiKey: process.env.ALQUIMIA_ASSISTANT_API_KEY!,
+});
+
+export const POST = handlers.handleToolApproval;
+```
+
+None of the last three takes a `[...path]` segment: identity travels in headers, and the
+pending tool call or approval is correlated by `control_id` in the body.
 
 `createNextJsRouteHandlers` wraps the framework-agnostic `createAlquimiaProxyHandler` with Next.js App Router context param extraction. Optional config: `inferRoute` (default `'event/infer'`), `streamRoute` (default `'event/stream'`), `blobUploadRoute` (default `'context/blob/upload'`).
 
@@ -126,6 +145,7 @@ const adapter = createFetchAdapter({
   streamPath: '/stream',                  // default
   blobUploadPath: '/blob/upload',         // default
   toolCompletionPath: '/tool-completion', // default
+  toolApprovalPath: '/tool-approval',     // default
 });
 ```
 
@@ -142,13 +162,18 @@ const handler = createAlquimiaProxyHandler({
   streamRoute: 'event/stream',
   blobUploadRoute: 'context/blob/upload',
   toolCompletionRoute: 'event/tool-completion',
+  toolApprovalRoute: 'event/tool-approval',
 });
 
 // handler.handleInfer(request, pathSuffix)  → Response
 // handler.handleStream(request, streamId)   → Response
 // handler.handleBlobUpload(request)         → Response
 // handler.handleToolCompletion(request)     → Response
+// handler.handleToolApproval(request)       → Response
 ```
+
+Tool-completion and tool-approval pass the runtime's status and body through untouched: the
+approval 409s differ only in their `detail`, and the SDK reads it to tell them apart.
 
 The handler accepts Web `Request` objects and returns Web `Response` objects — wire it into your framework's routing.
 
@@ -229,6 +254,7 @@ app.get('/stream/*', (c) =>
 );
 app.post('/blob/upload', (c) => handler.handleBlobUpload(c.req.raw));
 app.post('/tool-completion', (c) => handler.handleToolCompletion(c.req.raw));
+app.post('/tool-approval', (c) => handler.handleToolApproval(c.req.raw));
 ```
 
 > Named params (`/stream/:streamId`) work fine in Hono v4 — only the `*`
@@ -263,6 +289,8 @@ const adapter = createFetchAdapter({
   inferPath: '/event/infer',
   streamPath: '/event/stream',
   blobUploadPath: '/context/blob/upload',
+  toolCompletionPath: '/event/tool-completion',
+  toolApprovalPath: '/event/tool-approval',
 });
 ```
 
@@ -342,6 +370,12 @@ const adapter: AlquimiaAdapter = {
   resolveBlobUploadUrl() {
     return `${BACKEND}/context/blob/upload`;
   },
+  resolveToolCompletionUrl() {
+    return `${BACKEND}/event/tool-completion`;
+  },
+  resolveToolApprovalUrl() {
+    return `${BACKEND}/event/tool-approval`;
+  },
   getHeaders() {
     return { Authorization: `Bearer ${API_KEY}` };
   },
@@ -388,6 +422,8 @@ const adapter: AlquimiaAdapter = {
   resolveInferUrl(assistantId) { return `https://.../${assistantId}`; },
   resolveStreamUrl(streamId)   { return `https://.../${streamId}`; },
   resolveBlobUploadUrl()       { return `https://.../context/blob/upload`; },
+  resolveToolCompletionUrl()   { return `https://.../event/tool-completion`; }, // client tools, GenUI
+  resolveToolApprovalUrl()     { return `https://.../event/tool-approval`; },   // human approval
   getHeaders() { return { Authorization: 'Bearer ...' }; },
 };
 ```
