@@ -8,7 +8,7 @@ The SDK uses an **adapter** to resolve the endpoint URLs, then calls them from t
 |------|--------|------------------------|------------|
 | Chat infer | POST (axios) | `adapter.resolveInferUrl(assistantId)` | always |
 | Stream | GET SSE (EventSource) | `adapter.resolveStreamUrl(streamId)` | always |
-| Blob upload | POST (axios) | `adapter.resolveBlobUploadUrl()` | attachments, audio input |
+| Blob upload | POST (axios) | `adapter.resolveBlobUploadUrl()` | file attachments (not audio — audio rides the infer request) |
 | Tool completion | POST (axios) | `adapter.resolveToolCompletionUrl()` | client tools, **GenUI** |
 | Tool approval | POST (axios) | `adapter.resolveToolApprovalUrl()` | tool calls that need human approval (tools ≥ 2.8.0) |
 

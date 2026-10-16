@@ -67,7 +67,8 @@ const {
   hasThinkings,          // boolean — backend sends reasoning steps
 
   // Actions
-  handleSubmit,          // (event, traceParentId?, sessionId?, additionalInfo?) => Promise<void>
+  handleSubmit,          // (event, traceParentId?, sessionId?, additionalInfo?, audio?) => Promise<void>
+                         //   audio: { inputAudio?: File | Blob, outputAudio?: boolean } — see features/audio-inference.md
   handleSystemMessage,   // (text, { sessionId?, messageType?, traceParentId? }) => Promise<void>
   handleInputChange,     // (event: ChangeEvent<HTMLTextAreaElement>) => void
   handleReplaceInput,    // (text: string) => void — used by STT
@@ -253,6 +254,8 @@ alquimia.sdk.withUserId('user'); // replace with actual user identifier (e.g. us
 ```
 
 **Always call `withUserId`** — the backend requires it. Use a real user identifier when available, or `'user'` as a fallback for anonymous/dev usage.
+
+From runtime v0.5.5 the runtime only accepts a `user_id` different from the authenticated caller's own identity when that caller is a platform admin; otherwise it answers 403. Through the server proxy this is fine — its static API token has the platform-admin role by default. If requests are authenticated with an end user's own Keycloak token instead, pass that user's subject (or leave `withUserId` unset).
 
 ---
 

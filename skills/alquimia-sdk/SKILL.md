@@ -120,9 +120,11 @@ The Alquimia SDK has two packages:
 
 ### Runtime compatibility
 
-Current target: **alquimia-runtime v0.5.2 / alquimia-core v0.5.3**. Features that need a
+Current target: **alquimia-runtime v0.5.5 / alquimia-core v0.5.8**. Features that need a
 specific floor are marked where they appear — audio inference needs ≥ 0.5.1, and
 `withVersionTag()` needs ≥ 0.5.2 (older runtimes ignore the parameter rather than failing).
+From 0.5.5, a `withUserId()` that differs from the authenticated caller needs a
+platform-admin credential (the proxy's API token has it by default) — see `core/sdk-init.md`.
 
 ### How it connects
 
