@@ -29,16 +29,18 @@ const {
 
 ## Uploading a single file yourself
 
-The hook uploads queued attachments automatically. To upload one directly — which is how audio
-input works — call the SDK and keep what it returns:
+The hook uploads queued attachments automatically. To upload one directly, call the SDK and
+keep what it returns:
 
 ```typescript
 const blob = await alquimia.sdk.uploadAttachment(file);
 // RuntimeBlob: { blob_id, filename, content_size, content_type, ... }
 ```
 
-It resolves to the blob the runtime stored. That object is what `sendMessage`'s `inputAudio`
-expects (see `features/audio-inference.md`); for ordinary attachments you can ignore it.
+It resolves to the blob the runtime stored; for ordinary attachments you can ignore it.
+
+**Blob upload is for attachments, not audio.** Do not upload a recording to use as
+`inputAudio` — audio is sent inline in the inference request. See `features/audio-inference.md`.
 
 ---
 

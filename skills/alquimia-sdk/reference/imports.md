@@ -6,6 +6,7 @@
 
 ```typescript
 import { AlquimiaSDK } from '@alquimia-ai/tools/sdk';
+import { toInputAudio, MAX_INPUT_AUDIO_BYTES } from '@alquimia-ai/tools/sdk'; // inline audio input (tools ≥ 2.10.0)
 import { useAlquimia, useRatings } from '@alquimia-ai/tools/hooks';
 import type { ToolApproval, UseAlquimiaConfig } from '@alquimia-ai/tools/hooks';
 ```
@@ -179,7 +180,9 @@ import type {
   TextContentPart,
   ImageContentPart,
   NonStandardContentPart,
-  RuntimeBlob,           // what uploadAttachment resolves to; goes in `inputAudio`
+  RuntimeBlob,           // what uploadAttachment resolves to (attachments only, not audio)
+  InputAudio,            // inline `input_audio` payload: { filename, content_size, content_type, data_base64 } (tools ≥ 2.10.0)
+  InputAudioSource,      // what `inputAudio` accepts: File | Blob | InputAudio (tools ≥ 2.10.0)
   ToolApprovalEvent,     // body of POST /event/tool-approval
   ToolApprovalResult,    // what approveTool / submitToolApproval resolve to
   ToolApprovalOutcome,

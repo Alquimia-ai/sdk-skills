@@ -18,44 +18,66 @@ request itself. The two can coexist but solve different problems:
 
 ## 1. Sending audio
 
-`input_audio` is a **blob reference, not bytes**. Upload first, then reference the blob the
-runtime gives back. There is no multipart path on infer — it accepts JSON only.
+Requires **`@alquimia-ai/tools` ≥ 2.10.0** (inline audio; `handleSubmit`'s audio argument exists from 2.9.0, but before 2.10.0 it only took an uploaded blob, which does not transcribe).
+
+Audio goes **inline** in the inference request. Pass the recording itself — a `File`, or the
+`Blob` that `MediaRecorder` produces — and the SDK base64-encodes it into `input_audio`. There
+is no upload step.
+
+**Blob upload is not for audio.** `uploadAttachment` / `POST /context/blob/upload` is for file
+attachments only. Never upload a recording and pass the result as `inputAudio`: the runtime's
+speech-to-text reads the bytes from `input_audio.data_base64` and never looks a blob up by id,
+so an uploaded reference transcribes to nothing. The SDK rejects one with an error.
+
+Through the hook, pass the audio as `handleSubmit`'s fifth argument. This is the path to use:
+the user's turn enters `messages`, the stream opens, and the worklog resets, exactly as for a
+typed message.
 
 ```typescript
-// 1. upload → POST /context/blob/upload → RuntimeBlob
-const blob = await alquimia.sdk.uploadAttachment(audioFile);
-
-// 2. send the reference
-await alquimia.sdk.sendMessage(undefined, { inputAudio: blob });
+await alquimia.handleSubmit(event, traceParentId, sessionId, undefined, {
+  inputAudio: recording,          // File | Blob
+});
 ```
 
-`query` is optional when audio is supplied, so the call above is an audio-only turn. Send both
-to supply audio *and* text:
+With an empty input box that is an audio-only turn. If the user also typed something, the text
+is sent as `query` alongside the audio.
+
+Calling the SDK directly works too, but skips everything the hook owns (message list, stream,
+worklog) — only do it outside a chat UI:
 
 ```typescript
-await alquimia.sdk.sendMessage('in Spanish, please', { inputAudio: blob });
+await alquimia.sdk.sendMessage(undefined, { inputAudio: recording });     // audio only
+await alquimia.sdk.sendMessage('in Spanish, please', { inputAudio: recording }); // audio + text
 ```
 
 A turn with neither a query nor audio throws before any request is made.
 
-`RuntimeBlob` is the runtime's own blob schema:
+On the wire the SDK sends the runtime's `Blob` shape with the bytes in it. `blob_id` is omitted
+(the runtime generates one) and `filename` is free-form:
 
-```typescript
-interface RuntimeBlob {
-  blob_id: string;
-  filename: string;
-  content_size: number;
-  content_type?: string | null;
-  checksum?: string | null;
-  created_at?: number | null;
-  expires_at?: number | null;
-  data_base64?: string | null;   // populated by channel ingest, not by blob upload
+```json
+{
+  "input_audio": {
+    "filename": "turn.webm",
+    "content_size": 12345,
+    "content_type": "audio/webm;codecs=opus",
+    "data_base64": "<base64>"
+  }
 }
 ```
 
-### Recording in the browser
+If you build the request yourself, `toInputAudio(file)` from `@alquimia-ai/tools/sdk` produces
+exactly that object (type `InputAudio`).
 
-`MediaRecorder` gives you a `Blob`; wrap it in a `File` so `uploadAttachment` can post it:
+### Size limit
+
+The inference body travels through Kafka as a single event (10 MiB by default), base64 adds a
+third, and the conversation and agent config ride in the same event. The SDK therefore caps a
+turn at **`MAX_INPUT_AUDIO_BYTES` (7 MB)** of raw audio and throws before sending anything
+larger. That is minutes of compressed voice; if you hit it, record shorter turns rather than
+raising it.
+
+### Recording in the browser
 
 ```typescript
 const chunks: Blob[] = [];
@@ -63,13 +85,23 @@ const recorder = new MediaRecorder(await navigator.mediaDevices.getUserMedia({ a
 
 recorder.ondataavailable = (e) => chunks.push(e.data);
 recorder.onstop = async () => {
-  const file = new File(chunks, 'turn.webm', { type: recorder.mimeType });
-  const blob = await alquimia.sdk.uploadAttachment(file);
-  await alquimia.sdk.sendMessage(undefined, { inputAudio: blob });
+  const recording = new Blob(chunks, { type: recorder.mimeType });
+  await alquimia.handleSubmit(fakeSubmitEvent, undefined, undefined, undefined, {
+    inputAudio: recording,
+  });
 };
 ```
 
-Check which container formats the agent's STT adapter accepts before settling on one.
+`handleSubmit` calls `event.preventDefault()`, so when you trigger it from a recorder rather
+than a form, pass an object with a no-op `preventDefault`:
+
+```typescript
+const fakeSubmitEvent = { preventDefault() {} } as React.FormEvent<HTMLFormElement>;
+```
+
+A bare `Blob` has no name, so the SDK calls it `turn.<subtype>` (`turn.webm`); wrap it in a
+`File` if you want a specific name. Check which container formats the agent's STT adapter
+accepts before settling on one.
 
 ---
 
@@ -98,6 +130,5 @@ With `options: { worklog: true }`, the speech steps appear as their own nodes un
 
 ## 4. Route requirement
 
-Audio input goes through the blob-upload route, so `app/api/blob/upload/route.ts` (or its
-equivalent) must exist even if the app has no file-attachment UI. See
-`setup/backend-routes.md`.
+None beyond the inference route. Audio rides the infer request, so it does **not** need the
+blob-upload route — that route is only for file attachments.
