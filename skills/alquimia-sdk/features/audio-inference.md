@@ -79,6 +79,9 @@ raising it.
 
 ### Recording in the browser
 
+From **`@alquimia-ai/tools` ≥ 2.10.0**, `sendAudio` sends a voice turn without a form event.
+It uses the same message list, stream and worklog as `handleSubmit`:
+
 ```typescript
 const chunks: Blob[] = [];
 const recorder = new MediaRecorder(await navigator.mediaDevices.getUserMedia({ audio: true }));
@@ -86,17 +89,22 @@ const recorder = new MediaRecorder(await navigator.mediaDevices.getUserMedia({ a
 recorder.ondataavailable = (e) => chunks.push(e.data);
 recorder.onstop = async () => {
   const recording = new Blob(chunks, { type: recorder.mimeType });
-  await alquimia.handleSubmit(fakeSubmitEvent, undefined, undefined, undefined, {
-    inputAudio: recording,
-  });
+  await alquimia.sendAudio(recording);        // options?: { sessionId?, traceParentId?, additionalInfo?, outputAudio? }
 };
 ```
 
-`handleSubmit` calls `event.preventDefault()`, so when you trigger it from a recorder rather
-than a form, pass an object with a no-op `preventDefault`:
+With the Full Alquimia UI (**`@alquimia-ai/ui` ≥ 2.4.0**), `SpeechToText` does the recording.
+Give it `onAudioRecorded` instead of `speechToText`, and the recording goes to the agent
+rather than to a browser-side provider:
 
-```typescript
-const fakeSubmitEvent = { preventDefault() {} } as React.FormEvent<HTMLFormElement>;
+```tsx
+<SpeechToText
+  RecordAudioIcon={<MicOff />}
+  IdleAudioIcon={<Mic />}
+  onAudioRecorded={(audio) => alquimia.sendAudio(audio)}
+  handleReplaceInput={alquimia.handleReplaceInput}
+  setIsAudioRecording={alquimia.setIsAudioRecording}
+/>
 ```
 
 A bare `Blob` has no name, so the SDK calls it `turn.<subtype>` (`turn.webm`); wrap it in a
@@ -105,10 +113,41 @@ accepts before settling on one.
 
 ---
 
-## 2. Controlling the spoken reply
+## 2. Playing the spoken reply
 
-For an audio-enabled agent the runtime defaults `output_audio` to **`true`** — it may
-synthesize speech whether or not your UI can play it. A text-only frontend should say so:
+Requires **runtime ≥ 0.6.0** and **`@alquimia-ai/tools` ≥ 2.10.0**. Older runtimes do
+synthesize the reply, but they do not stream it to the browser.
+
+When the agent speaks, the final stream frame carries the TTS inline. `useAlquimia` puts it on
+the assistant message as `message.audio` (`OutputAudio`: `{ dataBase64, contentType, filename? }`),
+next to the text. Text replies have no `audio`.
+
+With the Full Alquimia UI (**`@alquimia-ai/ui` ≥ 2.4.0**), `AssistantMessageArea` renders a
+player on those messages on its own. Add `autoPlayAudio` to play each reply as it arrives:
+
+```tsx
+<AssistantMessageArea messages={alquimia.messages} autoPlayAudio /* …other props */ />
+```
+
+A history restored on mount never auto-plays. Browsers may still block autoplay until the user
+has interacted with the page, which is normally the case after they recorded a turn.
+
+With your own components, build the `src` with `outputAudioUrl`:
+
+```tsx
+import { outputAudioUrl } from '@alquimia-ai/tools/sdk';
+
+{message.audio && <audio controls autoPlay src={outputAudioUrl(message.audio)} />}
+```
+
+When the agent answers in audio depends on its `reply_in` policy (runtime config, not
+something the frontend sends): `always` (the default) speaks every reply, `mirror` speaks
+only when the user spoke, and `text` never speaks.
+
+## 3. Turning the spoken reply off
+
+For an audio-enabled agent the runtime defaults `output_audio` to **`true`**. A frontend that
+cannot play audio should turn it off, which also keeps the base64 audio out of the stream:
 
 ```typescript
 await alquimia.sdk.sendMessage('hello', { outputAudio: false });
@@ -120,7 +159,7 @@ that turn only; the agent's stored config is untouched.
 
 ---
 
-## 3. What it looks like in the worklog
+## 4. What it looks like in the worklog
 
 With `options: { worklog: true }`, the speech steps appear as their own nodes under the
 `speech` kind — `SpeechTranscription` on the way in, `SpeechSynthesis` on the way out. See
@@ -128,7 +167,7 @@ With `options: { worklog: true }`, the speech steps appear as their own nodes un
 
 ---
 
-## 4. Route requirement
+## 5. Route requirement
 
 None beyond the inference route. Audio rides the infer request, so it does **not** need the
 blob-upload route — that route is only for file attachments.
