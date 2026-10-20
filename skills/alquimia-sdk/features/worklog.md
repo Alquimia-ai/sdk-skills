@@ -118,7 +118,10 @@ ingest(frameToRecord(rawSseFrame));
 | `foldWorklog(records, taskId?)` | Fold a complete record array into final state |
 | `reduceWorklog(state, record)` | Single-record reducer |
 | `useWorklog(taskId?)` | Live accumulator hook — `{ worklog, ingest, ingestMany, reset }` |
-| `frameToRecord(frame)` | Normalize a raw SSE frame into a `WorklogRecord` |
+| `frameToRecord(frame)` | Normalize a raw SSE frame (or `/worklog` event item) into a `WorklogRecord` |
+| `normalizeFrame(frame)` | Put a raw runtime v0.6.0+ frame back to the pre-0.6 `data` shape (tools ≥ 2.10.0) |
 | `EVENT_REGISTRY` / `resolveInterpreter(eventClass)` | How an event class maps to tree behavior — extend for custom event classes |
+
+**Runtime v0.6.0 changed the frame shape** (core 0.6 compacts each event). `data` now holds the *whole* event, where before it held `result or message` for a response. Each frame also carries `event_bytes` (a base64 duplicate), `step_id` and `content_hash`. `frameToRecord` (**`@alquimia-ai/tools` ≥ 2.10.0**) puts `data` back to the old shape, keeps the full event on `record.event`, and carries `step_id` and `content_hash`. Always pass frames through it. Never read a raw v0.6 frame's `data` as the answer or the decision. If you parse frames yourself, `normalizeFrame(frame)` does the same on a raw frame. `/worklog/{task_id}/events` items carry the full event in `data` from v0.6.0 too, so pass them through `frameToRecord` before folding. An older `@alquimia-ai/tools` against runtime v0.6.0 shows the dumped event as the answer, and reads every approval as rejected.
 
 Runtime v0.5.0+ records carry `entry_hash` / `previous_hash` for a tamper-evident chain; they are optional on SSE frames. `GET /worklog/{task_id}/verify` walks that chain server-side and returns a `WorklogVerificationResult` (typed in `@alquimia-ai/tools/worklog`); it is audit surface, so call it from your backend rather than the browser.

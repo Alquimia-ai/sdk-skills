@@ -120,8 +120,11 @@ The Alquimia SDK has two packages:
 
 ### Runtime compatibility
 
-Current target: **alquimia-runtime v0.5.5 / alquimia-core v0.5.8**. Features that need a
-specific floor are marked where they appear — audio inference needs ≥ 0.5.1, and
+Current target: **alquimia-runtime v0.6.0 / alquimia-core v0.6.1**. Runtime v0.6.0 changed
+the shape of every stream frame, so it needs **`@alquimia-ai/tools` ≥ 2.10.0**. An older SDK
+shows the raw event as the answer and reads every tool approval as rejected. Features that need
+a specific floor are marked where they appear: audio inference needs ≥ 0.5.1 (≥ 0.6.0 to play
+the spoken reply in the browser), and
 `withVersionTag()` needs ≥ 0.5.2 (older runtimes ignore the parameter rather than failing).
 From 0.5.5, a `withUserId()` that differs from the authenticated caller needs a
 platform-admin credential (the proxy's API token has it by default) — see `core/sdk-init.md`.

@@ -59,7 +59,8 @@ const {
   sdk,                   // AlquimiaSDK — call .withConversationId(), .withTools(), etc.
 
   // Message state
-  messages,              // AlquimiaMessage[] — full conversation
+  messages,              // AlquimiaMessage[] — full conversation; an assistant message has `audio`
+                         //   when the agent spoke (runtime ≥ 0.6.0, tools ≥ 2.10.0)
   input,                 // string — current input text
   isMessageLoading,      // boolean — request in flight
   isMessageStreaming,    // boolean — SSE stream open
@@ -69,6 +70,8 @@ const {
   // Actions
   handleSubmit,          // (event, traceParentId?, sessionId?, additionalInfo?, audio?) => Promise<void>
                          //   audio: { inputAudio?: File | Blob, outputAudio?: boolean } — see features/audio-inference.md
+  sendAudio,             // (recording: File | Blob, { sessionId?, traceParentId?, additionalInfo?, outputAudio? }?) => Promise<void>
+                         //   a voice turn with no form event (tools ≥ 2.10.0) — see features/audio-inference.md
   handleSystemMessage,   // (text, { sessionId?, messageType?, traceParentId? }) => Promise<void>
   handleInputChange,     // (event: ChangeEvent<HTMLTextAreaElement>) => void
   handleReplaceInput,    // (text: string) => void — used by STT
