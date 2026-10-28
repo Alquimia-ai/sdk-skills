@@ -120,9 +120,13 @@ The Alquimia SDK has two packages:
 
 ### Runtime compatibility
 
-Current target: **alquimia-runtime v0.5.5 / alquimia-core v0.5.8**. Features that need a
+Current target: **alquimia-runtime v0.7.0 / alquimia-core v0.7.1**. Features that need a
 specific floor are marked where they appear — audio inference needs ≥ 0.5.1, and
 `withVersionTag()` needs ≥ 0.5.2 (older runtimes ignore the parameter rather than failing).
+From 0.7.0 the runtime refuses tool definitions sent in the request: client tools, GenUI's
+`render_ui` included, are registered in Studio and referenced by id — use
+`@alquimia-ai/tools` ≥ 2.11.0, which does this (see `features/genui.md` §2). The same SDK
+release sends the `agentspace-id` header that 0.7.0 requires on attachment uploads.
 From 0.5.5, a `withUserId()` that differs from the authenticated caller needs a
 platform-admin credential (the proxy's API token has it by default) — see `core/sdk-init.md`.
 
@@ -147,4 +151,4 @@ The `useAlquimia` hook creates the SDK internally and returns the full chat stat
 
 ### GenUI in one paragraph
 
-With `useAlquimia({ genui })`, the agent can answer with **real interactive UI** instead of prose. It calls a `render_ui` client tool whose arguments are a declarative component tree; the SDK validates that tree against a **catalog**, renders it with React components you control, and posts the user's input back so the agent continues. The agent never emits markup — only component names and props you authorized. Point the catalog at components you define and the same agent composes those instead, in your design system. See `features/genui.md`, then `features/genui-custom-components.md`.
+With `useAlquimia({ genui })`, the agent can answer with **real interactive UI** instead of prose. It calls a `render_ui` client tool whose arguments are a declarative component tree; the SDK validates that tree against a **catalog**, renders it with React components you control, and posts the user's input back so the agent continues. The agent never emits markup — only component names and props you authorized. Point the catalog at components you define and the same agent composes those instead, in your design system. On runtime ≥ 0.7.0 the `render_ui` tool is registered once in Studio and attached to the agent; your catalog never is — it stays in your app. See `features/genui.md`, then `features/genui-custom-components.md`.

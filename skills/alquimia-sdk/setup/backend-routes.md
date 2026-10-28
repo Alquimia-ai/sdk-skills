@@ -29,7 +29,9 @@ The SDK **never adds an `Authorization` header** itself. In proxied mode (Mode 1
 > **v2.1 note:** Attachments now post to `/context/blob/upload` (no
 > stream_id/attachment_id in the path). The SDK attaches kebab-case
 > identity headers (`assistant-id`, `session-id`, `user-id`,
-> `task-id`) automatically; the proxy forwards them.
+> `task-id`, and from tools 2.11.0 `agentspace-id`, which runtime ≥ 0.7.0
+> requires on blob upload) automatically; the proxy forwards them.
+> If you write your own proxy, forward `agentspace-id` too.
 
 ---
 

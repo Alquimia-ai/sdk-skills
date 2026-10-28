@@ -12,7 +12,7 @@ This is the main reason GenUI is catalog-based. The agent does not know what any
 |---|---|---|
 | **1 — Swap the registry** | The default catalog, rendered with your components | Minutes. Keeps ~43 components working. |
 | **2 — Author a catalog** | Components you define, named and shaped by you | The real work. Full control of what the agent may emit. |
-| **3 — Move the tool to the agent spec** | The tool + clause defined in Studio, not injected by the client | Config, not code. Composes with 1 or 2. |
+| **3 — Where `render_ui` lives** | The tool registered in Studio (required on runtime ≥ 0.7.0) or sent by the client (older runtimes) | Config, not code. Composes with 1 or 2. Your catalog never moves. |
 
 Levels 1 and 2 combine: most catalogs reuse the core layout components and add their own on top.
 
@@ -367,7 +367,7 @@ Everything derives from that one artifact:
 
 ```
 store-v1.catalog.json
-        ├──► render_ui tool schema   (buildRenderUiSchema)  → what the model may emit
+        ├──► render_ui tool schema   (buildRenderUiSchema)  → only with source: 'client' (runtime < 0.7.0)
         ├──► prompt clause           (buildGenuiClause)     → when/how to use UI
         ├──► client validators       (validateSurface)      → reject/degrade bad output
         └──► renderer keys           (your registry)        → names you must implement
@@ -379,58 +379,53 @@ Additive changes (a new optional prop, a new component) do not need a bump.
 
 ---
 
-## 7. Level 3 — `source: 'client'` vs `source: 'agent'`
+## 7. Level 3 — where `render_ui` lives (`source`)
 
-This setting answers one question: **who tells the agent that it can draw UI?**
+For the agent to emit a surface it needs two things:
 
-For the agent to emit a surface, two things must reach it on every turn:
+1. the **`render_ui` tool** — the shape of a surface it may emit
+2. the **prompt clause** — your catalog's components, when to use UI instead of prose, and how the result comes back
 
-1. the **`render_ui` tool schema** — the constrained shape it may emit (derived from your catalog)
-2. the **prompt clause** — when to use UI instead of prose, and how the result comes back
+The clause always comes from your app, built from your catalog on every turn. The tool is the part that moved.
 
-They can come from the browser, or from the agent's own configuration. That is the whole difference.
+### `source: 'agent'` — the default (tools ≥ 2.11.0, required on runtime ≥ 0.7.0)
 
-### `source: 'client'` — the default
-
-The SDK injects both on every request. Concretely, `useAlquimia` calls `withTools([buildRenderUiSchema(catalog, allow)])` and adds the clause to `extra_instructions`, and they ride out on the infer body as `evaluation_strategy`.
+From alquimia-runtime 0.7.0 a request can no longer define tools (`evaluation_strategy.tool_schemas` → `400`). `render_ui` is registered in the runtime registry as a `provider_id: "client"` tool and attached to the agent in Studio. The SDK sends no tool definition — only the clause:
 
 ```tsx
-genui: { catalog: myCatalog }     // source defaults to 'client'
+genui: { catalog: myCatalog }                          // source: 'agent' is the default
+genui: { catalog: myCatalog, toolId: 'client-genui' }  // registered, but not attached to the agent
 ```
 
-- The agent needs **zero configuration** — a plain agent gains GenUI purely from the frontend.
-- Change your catalog, redeploy the frontend, and the agent composes the new components on the next message. No registry change.
+**Your catalog is never registered.** The registered definition is catalog-agnostic — `component` is any string, `catalogId` any URI — and ships as `renderUiToolJson` / `buildGenericRenderUiSchema()` from `@alquimia-ai/tools/genui`. What tells the agent *which* components exist is the clause, and what holds it to them is `validateSurface`: a surface naming a component outside your catalog comes back to the agent as a validation error, and it retries. So:
+
+- Change your catalog, redeploy the frontend, and the agent composes the new components on the next message. **No change in Studio.**
 - Each app can hand the same agent a different catalog.
+- The only registry change ever needed is attaching `render_ui` to the agent, once.
 
-This is what you want unless you have a specific reason otherwise.
+The trade: without the catalog baked into the schema as an enum, a weak model may try a component you don't have more often. It costs a retry, not a broken chat.
 
-### `source: 'agent'`
+### `source: 'client'` — runtimes before 0.7.0 only
 
-The `render_ui` tool and the clause are already defined on the **agent spec** in the registry (configured in Studio). The SDK then injects nothing:
+The SDK sends the catalog-bound schema inline on every request (`withTools([buildRenderUiSchema(catalog, allow)])`, riding the infer body as `evaluation_strategy`). The agent needs no configuration. Runtime 0.7.0 answers it with a `400`. This was the default before tools 2.11.0.
 
 ```tsx
-genui: { catalog: myCatalog, source: 'agent' }
+genui: { catalog: myCatalog, source: 'client' }
 ```
 
-You still pass `catalog` — the SDK needs it to validate and render incoming surfaces. It just stops *sending* it.
-
-**Why the switch has to exist:** `evaluation_strategy` **replaces** the spec's tools rather than merging with them. If the SDK kept injecting its own while the spec already defined `render_ui`, the client's version would silently clobber the server-side one. `source: 'agent'` is what makes the SDK stay quiet. (This invariant is pinned by `genui-source.test.ts`: no registered client tools ⇒ no `evaluation_strategy` on the wire.)
-
-Use it when the UI capability belongs to the agent itself — governed centrally, identical across every client, versioned with the agent rather than with the frontend.
+Never combine it with an agent that already has `render_ui`: a request-sent `evaluation_strategy` **replaces** the spec's tools rather than merging with them.
 
 ### Either way, the loop is identical
 
 The render/complete lifecycle keys off the `ClientToolExecution` stream frame, not off who registered the tool. Nothing in your components or catalog changes between the two.
 
-| | `source: 'client'` (default) | `source: 'agent'` |
+| | `source: 'agent'` (default) | `source: 'client'` |
 |---|---|---|
-| Tool schema + clause come from | the SDK, every request | the agent spec |
-| `evaluation_strategy` on the wire | yes | no |
-| Agent needs configuring | no | yes (Studio) |
-| Change the catalog by | redeploying the frontend | updating the agent spec |
-| Catalog still passed to the hook | yes | yes — for validation + rendering |
-
-> **Status:** `source: 'agent'` is wired and unit-tested but not yet verified end-to-end against a live agent spec. Prefer `source: 'client'` unless you specifically need the tool defined server-side.
+| Runtime | ≥ 0.7.0 (earlier too, if the agent has the tool) | < 0.7.0 only |
+| `render_ui` definition comes from | the registry (Studio), catalog-agnostic | the SDK, every request, catalog-bound |
+| Catalog / clause comes from | your app, every request | your app, every request |
+| `evaluation_strategy` on the wire | no | yes |
+| Change the catalog by | redeploying the frontend | redeploying the frontend |
 
 ## 8. Rules that never change
 

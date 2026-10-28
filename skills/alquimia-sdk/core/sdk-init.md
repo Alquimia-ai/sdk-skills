@@ -56,7 +56,7 @@ const alquimia = useAlquimia({
 ```typescript
 const {
   // SDK instance (for advanced use)
-  sdk,                   // AlquimiaSDK — call .withConversationId(), .withTools(), etc.
+  sdk,                   // AlquimiaSDK — call .withConversationId(), .withClientTools(), etc.
 
   // Message state
   messages,              // AlquimiaMessage[] — full conversation
@@ -95,7 +95,8 @@ The hook exposes `alquimia.sdk` for chainable setters:
 alquimia.sdk.withConversationId(conversationId);
 alquimia.sdk.withUserId(userId);
 alquimia.sdk.withExtraInstructions({ key: 'value' }); // Record<string, string>
-alquimia.sdk.withTools(toolSchemas);                  // wraps into evaluation_strategy.tool_schemas (native)
+alquimia.sdk.withClientTools(['client-my-tool']);     // client_tools: ids of tools registered in Studio (tools ≥ 2.11.0, runtime ≥ 0.7.0)
+// withTools(toolSchemas) is deprecated: it sends inline schemas, which runtime ≥ 0.7.0 refuses with a 400
 alquimia.sdk.withWhisperProvider(provider);
 alquimia.sdk.withStableDiffusionProvider(provider);
 alquimia.sdk.withAnalyzeCharacterizationProvider(provider);
