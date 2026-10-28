@@ -35,13 +35,17 @@ agent resumes ──► final answer streams back
 Two things follow from "inference pauses":
 
 - An interactive surface **parks the conversation** until a result is posted. The user must always have an escape hatch — see §5.
-- The loop keys off the `ClientToolExecution` stream frame, not off who registered the tool. Client-injected and agent-spec tools behave identically.
+- The loop keys off the `ClientToolExecution` stream frame, not off who registered the tool. Registry and client-injected tools behave identically.
 
 ---
 
 ## 2. Turn it on
 
-Add `genui` to the `useAlquimia` config. That single option registers the `render_ui` tool, injects the prompt clause that teaches the agent when to use UI, and runs the whole surface lifecycle.
+GenUI needs two things: the `render_ui` **tool** on the agent, and the `genui` option on the hook.
+
+**The tool (once, in Studio — runtime ≥ 0.7.0).** From alquimia-runtime 0.7.0 a request can no longer define tools: sending a tool schema in the infer body is refused with a `400`. `render_ui` is registered in the runtime registry as a `provider_id: "client"` tool and attached to the agent in Studio. The definition to register is catalog-agnostic and ships with the SDK as `renderUiToolJson` (`@alquimia-ai/tools/genui`, tools ≥ 2.11.0), so it is registered once and never changes when your components do. If GenUI does not work, check this first: an agent without `render_ui` simply never calls it.
+
+**The hook.** Add `genui` to the `useAlquimia` config. It sends the prompt clause that teaches the agent your catalog and when to use UI, and runs the whole surface lifecycle.
 
 ```tsx
 import { useAlquimia } from '@alquimia-ai/tools/hooks';
@@ -53,16 +57,17 @@ const alquimia = useAlquimia({
   genui: {
     catalog: coreCatalog,   // optional — defaults to coreCatalog
     allow: 'all',           // optional — 'all' | string[] of component names
-    source: 'client',       // optional — 'client' (default) | 'agent'
+    // toolId: 'client-genui', // optional — only if render_ui is registered but NOT attached to the agent
   },
 });
 ```
 
 | Option | Meaning |
 |---|---|
-| `catalog` | The `CatalogManifest` the agent composes against. Defaults to `coreCatalog` (~43 components). |
+| `catalog` | The `CatalogManifest` the agent composes against. Defaults to `coreCatalog` (~43 components). Sent on every turn as the prompt clause and used to validate surfaces — never registered anywhere. |
 | `allow` | Restrict the agent to a subset of catalog components. `'all'` or an array of names. Defaults to all. |
-| `source` | Who tells the agent it can draw: `'client'` (default) — the SDK injects the `render_ui` tool + prompt clause on every request, so the agent needs no configuration. `'agent'` — the tool is defined on the agent spec in Studio, so the SDK injects nothing. See `genui-custom-components.md` §7. |
+| `source` | Where the `render_ui` definition comes from. `'agent'` (default, tools ≥ 2.11.0) — the registry, as above. `'client'` — the SDK sends the schema inline on every request; **only for runtimes before 0.7.0**, which is also what tools < 2.11.0 did by default. See `genui-custom-components.md` §7. |
+| `toolId` | `registered_tool_id` of `render_ui`, sent as `client_tools` so the turn can use a registered tool the agent spec does not attach. Leave unset when the agent carries it. A wrong id is a `403`. |
 
 Narrowing `allow` is the cheapest quality lever available. A smaller surface area means the model picks better components and hallucinates less:
 
@@ -270,6 +275,8 @@ GenUI degrades instead of crashing — a model will eventually emit something wr
 
 ## 10. Checklist
 
+- [ ] `render_ui` registered as a client tool and attached to the agent in Studio (runtime ≥ 0.7.0), or its id passed as `genui.toolId`
+- [ ] `@alquimia-ai/tools` ≥ 2.11.0 against runtime ≥ 0.7.0 (older versions send the tool inline and get a `400`)
 - [ ] `genui` passed to `useAlquimia`
 - [ ] Surfaces rendered via `AssistantChat` *or* `A2uiRenderer` anchored by `afterCount`
 - [ ] Submitted surfaces frozen (`item.submitted`)

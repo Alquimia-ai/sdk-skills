@@ -8,7 +8,7 @@
 import { AlquimiaSDK } from '@alquimia-ai/tools/sdk';
 import { toInputAudio, MAX_INPUT_AUDIO_BYTES } from '@alquimia-ai/tools/sdk'; // inline audio input (tools ≥ 2.10.0)
 import { useAlquimia, useRatings } from '@alquimia-ai/tools/hooks';
-import type { ToolApproval, UseAlquimiaConfig } from '@alquimia-ai/tools/hooks';
+import type { ToolApproval, UseAlquimiaConfig, GenuiConfig } from '@alquimia-ai/tools/hooks'; // GenuiConfig: tools ≥ 2.11.0
 ```
 
 ### Adapters
@@ -78,7 +78,9 @@ import {
   CORE_CATALOG_ID,
   coreCatalogJson,          // the published, versioned A2UI catalog artifact
   emitA2uiCatalog,          // authoring catalog -> versioned catalog.json
-  buildRenderUiSchema,      // catalog -> render_ui tool schema
+  buildRenderUiSchema,      // catalog -> render_ui tool schema (source: 'client', runtime < 0.7.0)
+  buildGenericRenderUiSchema, // catalog-agnostic render_ui definition to register in Studio (tools ≥ 2.11.0)
+  renderUiToolJson,         // the same definition as a JSON value (tools ≥ 2.11.0)
   buildGenuiClause,         // catalog -> prompt clause
   validateSurface,          // surface -> { ok, errors, warnings }
   validateProps,

@@ -39,6 +39,11 @@ const blob = await alquimia.sdk.uploadAttachment(file);
 
 It resolves to the blob the runtime stored; for ordinary attachments you can ignore it.
 
+Runtime ≥ 0.7.0 refuses an upload without an `agentspace-id` header (`422`). `@alquimia-ai/tools`
+≥ 2.11.0 sends it — the agentspace the last turn resolved, or before the first turn the one in a
+versioned assistant ref, then `?agentspace_id=` on your infer URL, then `default` — so the blob
+lands where the next turn looks for it. Older SDK versions fail attachment uploads on 0.7.0.
+
 **Blob upload is for attachments, not audio.** Do not upload a recording to use as
 `inputAudio` — audio is sent inline in the inference request. See `features/audio-inference.md`.
 
